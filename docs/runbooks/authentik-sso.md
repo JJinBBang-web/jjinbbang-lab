@@ -8,8 +8,8 @@ Authentik은 운영 도구 접근의 SSO 기준이다.
 만든다. 이 Job은 Authentik runtime Secret, bootstrap Secret, SSO Secret을
 읽고 다음 blueprint를 적용한다.
 
-- `/blueprints/system/bootstrap.yaml`: `akadmin` 생성.
-- `jjinbbang-sso.yaml`: 기존 `akadmin` 보정, Argo CD OIDC Provider, n8n Proxy Provider, Embedded Outpost 연결.
+- `/blueprints/system/bootstrap.yaml`: 초기 admin 생성.
+- `jjinbbang-sso.yaml`: `ryuwon` admin 보정, Argo CD OIDC Provider, n8n Proxy Provider, Embedded Outpost 연결.
 - Job 후처리: Embedded Outpost의 internal host와 browser host를 고정.
 
 embedded outpost가 OIDC discovery URL을 public host로 만들려면
@@ -49,7 +49,7 @@ Authentik 배포 후 브라우저에서 `auth.jjinbbang.kr`로 접속한다. 처
 https://auth.jjinbbang.kr/if/flow/initial-setup/
 ```
 
-Bootstrap Job을 사용하면 `akadmin` 사용자는 이미 만들어져 있다. 최초 로그인
+Bootstrap Job을 사용하면 `ryuwon` admin 사용자는 이미 만들어져 있다. 최초 로그인
 후 passkey와 TOTP를 모두 등록한다. 이 사용자는 `authentik Admins`와
 `jjinbbang-admins` group에 속한다.
 

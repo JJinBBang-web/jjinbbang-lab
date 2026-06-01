@@ -91,7 +91,7 @@ authentik-worker-69bd78464d-c5782   1/1 Running
 ```
 
 - Authentik 내부 health와 initial setup flow를 확인했다.
-- Bootstrap Job으로 `akadmin`과 bootstrap admin email, usable password,
+- Bootstrap Job으로 `ryuwon` admin과 bootstrap admin email, usable password,
   `authentik Admins`/`jjinbbang-admins` group 소속을 확인했다.
 - Argo CD OIDC Provider, n8n Proxy Provider, Embedded Outpost provider 연결,
   Kubernetes service connection을 확인했다.
@@ -268,14 +268,14 @@ kubectl kustomize app applications ok
 
 ## 남은 수동 작업
 
-- Authentik `akadmin`은 생성됐지만 passkey/TOTP 설정은 아직 브라우저에서 완료하지 않았다.
+- Authentik `ryuwon` admin은 생성됐지만 passkey/TOTP 설정은 아직 브라우저에서 완료하지 않았다.
 - API 배포는 `api-dev` DNS, 앱 secret, GHCR image tag가 준비된 뒤
   `platform/applications/apps`를 별도로 적용한다. `api` production DNS는 기존
   AWS endpoint cutover 승인 후 변경한다.
 
 ## 다음 운영 순서
 
-1. `https://auth.jjinbbang.kr`에서 `akadmin`으로 로그인하고 passkey/TOTP를 설정한다.
+1. `https://auth.jjinbbang.kr`에서 `ryuwon`으로 로그인하고 passkey/TOTP를 설정한다.
 2. Argo CD는 `https://argo.jjinbbang.kr`에서 Authentik SSO로 로그인 확인한다.
 3. n8n은 `https://n8n.jjinbbang.kr`에서 Authentik SSO로 로그인 확인한다.
 4. README와 GitHub Actions workflow 문서/검증 보강분을 별도 PR로 올린다.

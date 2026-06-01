@@ -25,11 +25,11 @@ data:
           name: jjinbbang-observers
 
       - model: authentik_core.user
-        id: akadmin-user
+        id: ryuwon-user
         identifiers:
-          username: akadmin
+          username: ryuwon
         attrs:
-          name: authentik Default Admin
+          name: 유준호
           email: !Env AUTHENTIK_BOOTSTRAP_EMAIL
           password: !Env AUTHENTIK_BOOTSTRAP_PASSWORD
           groups:

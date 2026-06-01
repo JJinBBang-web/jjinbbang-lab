@@ -1,0 +1,27 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  valuesContent: |-
+    deployment:
+      replicas: 2
+    nodeSelector:
+      node-role.jjinbbang.dev/edge: "true"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    providers:
+      kubernetesIngress:
+        publishedService:
+          enabled: true
+    logs:
+      general:
+        level: INFO

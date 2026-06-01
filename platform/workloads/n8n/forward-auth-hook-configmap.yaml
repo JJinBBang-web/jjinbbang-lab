@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-forward-auth-hook
+  namespace: n8n
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+data:
+  forward-auth-sso.js: |
+    const DEFAULT_HEADER = 'X-authentik-email';
+
+    function log(logger, level, message, data) {
+      const writer = logger?.[level] ?? console[level] ?? console.log;
+      try {
+        data ? writer.call(logger ?? console, message, data) : writer.call(logger ?? console, message);
+      } catch {
+        console.log(message, data ?? '');
+      }
+    }
+
+    function getHeader(req, headerName) {
+      const value = typeof req.get === 'function' ? req.get(headerName) : req.headers?.[headerName.toLowerCase()];
+      return Array.isArray(value) ? value[0] : value;
+    }
+
+    function normalizeEmail(value) {
+      if (!value) return '';
+      return String(value).split(',')[0].trim().toLowerCase();
+    }
+
+    function unauthorized(req, res) {
+      if (res.headersSent) return;
+      const acceptsJson = req.path?.startsWith('/rest/') || String(req.headers?.accept ?? '').includes('application/json');
+      res.status(401);
+      if (acceptsJson) {
+        res.json({ status: 'error', message: 'Unauthorized' });
+      } else {
+        res.type('text/plain').send('Unauthorized');
+      }
+    }
+
+    function loadIssueCookie() {
+      const candidates = [
+        process.env.N8N_FORWARD_AUTH_ISSUE_COOKIE_MODULE,
+        '/usr/local/lib/node_modules/n8n/dist/auth/jwt',
+        '/usr/local/lib/node_modules/n8n/dist/auth/jwt.js',
+      ].filter(Boolean);
+
+      let lastError;
+      for (const candidate of candidates) {
+        try {
+          const module = require(candidate);
+          if (typeof module.issueCookie === 'function') return module.issueCookie;
+          lastError = new Error(`${candidate} does not export issueCookie`);
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError ?? new Error('Unable to load n8n issueCookie helper');
+    }
+
+    function installBeforeN8nRoutes(server, middleware) {
+      const app = server?.app;
+      if (!app || typeof app.use !== 'function') {
+        throw new Error('Unable to access n8n Express app');
+      }
+
+      app.use(middleware);
+
+      const router = app.router ?? app._router;
+      const stack = router?.stack;
+      if (!Array.isArray(stack)) {
+        throw new Error('Unable to access n8n Express router stack');
+      }
+
+      const index = stack.findIndex((layer) => layer.handle === middleware);
+      if (index < 0) {
+        throw new Error('Unable to find forward-auth middleware layer');
+      }
+
+      const [layer] = stack.splice(index, 1);
+      stack.unshift(layer);
+    }
+
+    module.exports = {
+      n8n: {
+        ready: [
+          async function installForwardAuthSso(server) {
+            const logger = server?.logger ?? console;
+            if (process.env.N8N_FORWARD_AUTH_ENABLED === 'false') {
+              log(logger, 'info', 'n8n forward-auth SSO shim disabled by N8N_FORWARD_AUTH_ENABLED=false');
+              return;
+            }
+
+            const headerName = process.env.N8N_FORWARD_AUTH_HEADER || DEFAULT_HEADER;
+            const issueCookie = loadIssueCookie();
+            const userRepository = this.dbCollections?.User;
+            if (!userRepository || typeof userRepository.findOne !== 'function') {
+              throw new Error('n8n User repository is not available to forward-auth hook');
+            }
+
+            const middleware = async function n8nForwardAuthSso(req, res, next) {
+              const email = normalizeEmail(getHeader(req, headerName));
+              if (!email) return next();
+
+              try {
+                const user = await userRepository.findOne({
+                  where: { email },
+                  relations: ['role'],
+                });
+
+                if (!user || user.disabled || !user.role) {
+                  log(logger, 'warn', 'Rejected forward-auth login for unknown or disabled n8n user', { email });
+                  return unauthorized(req, res);
+                }
+
+                issueCookie(res, user);
+                req.user = user;
+                req.authInfo = { usedMfa: Boolean(user.mfaEnabled) };
+                return next();
+              } catch (error) {
+                log(logger, 'error', 'Forward-auth SSO hook failed closed', {
+                  email,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+                return unauthorized(req, res);
+              }
+            };
+
+            installBeforeN8nRoutes(server, middleware);
+            log(logger, 'info', 'n8n forward-auth SSO shim enabled', { headerName });
+          },
+        ],
+      },
+    };

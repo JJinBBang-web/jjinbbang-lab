@@ -144,7 +144,24 @@ Authentik user email과 n8n user email이 같아야 자동 cookie 발급이 가�
 
 shim이 user를 찾지 못하면 401로 fail-closed 한다.
 
-현재 n8n pod 로그에서 shim 로드는 확인됐다.
+초기 owner는 Authentik bootstrap email과 같은 값으로 만든다. password는
+`n8n/n8n-owner-bootstrap` live Secret에만 보관하고 repo에는 넣지 않는다.
+다른 email을 써야 하면 `N8N_OWNER_EMAIL` 환경 변수로 넘긴다.
+
+```bash
+./scripts/bootstrap-n8n-owner.sh
+./scripts/bootstrap-n8n-owner.sh --check
+```
+
+정상 기대값:
+
+```text
+showSetupOnFirstLoad=false
+forward_auth_status=200
+forward_auth_cookie=present
+```
+
+n8n pod 로그에서 shim 로드도 확인한다.
 
 ```text
 n8n forward-auth SSO shim enabled

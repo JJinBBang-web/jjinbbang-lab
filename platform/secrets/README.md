@@ -98,6 +98,17 @@ kubectl -n n8n create secret generic n8n-secrets \
 교체가 필요하면 n8n credential export/import 또는 백업 복구 절차를 먼저
 정한다.
 
+첫 owner bootstrap 이후에는 임시 owner password를 live Secret에만 둔다.
+이 값은 SSO 장애 시 break-glass 성격으로만 사용한다.
+
+```bash
+./scripts/bootstrap-n8n-owner.sh
+kubectl -n n8n get secret n8n-owner-bootstrap \
+  -o jsonpath='{.data.email}' | base64 -d
+kubectl -n n8n get secret n8n-owner-bootstrap \
+  -o jsonpath='{.data.password}' | base64 -d
+```
+
 ## Jjinbbang API
 
 `apps/jjinbbang-api` overlays는 각 namespace에 같은 이름의 live Secret을

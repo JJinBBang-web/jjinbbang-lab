@@ -51,6 +51,10 @@ redirect_target() {
     --resolve "$host:443:$ip" "https://$host$path"
 }
 
+redact_url() {
+  sed -E 's/([?&](client_id|state|code|session)=)[^&]+/\1<redacted>/g'
+}
+
 require curl
 require ssh
 require_env JJINBBANG_LAB_SSH_KEY
@@ -72,7 +76,7 @@ for ip in "$WORKER_1_PUBLIC_IP" "$WORKER_2_PUBLIC_IP"; do
   auth_status="$(http_status "auth.$ZONE_NAME" "$ip" "/if/flow/initial-setup/")"
   n8n_ping_status="$(http_status "n8n.$ZONE_NAME" "$ip" "/outpost.goauthentik.io/ping")"
   n8n_root_status="$(http_status "n8n.$ZONE_NAME" "$ip" "/")"
-  n8n_redirect="$(redirect_target "n8n.$ZONE_NAME" "$ip" "/")"
+  n8n_redirect="$(redirect_target "n8n.$ZONE_NAME" "$ip" "/" | redact_url)"
   argo_status="$(http_status "argo.$ZONE_NAME" "$ip" "/")"
   argocd_oidc_status="$(http_status "auth.$ZONE_NAME" "$ip" "/application/o/argocd/.well-known/openid-configuration")"
   echo "$ip auth=$auth_status n8n_ping=$n8n_ping_status n8n_root=$n8n_root_status argo=$argo_status argocd_oidc=$argocd_oidc_status"

@@ -17,7 +17,8 @@ ROOT_APP_URL="${ROOT_APP_URL:-https://raw.githubusercontent.com/JJinBBang-web/jj
 FAILED=false
 ROOT_CHECK_LOG="$(mktemp)"
 SSO_CHECK_LOG="$(mktemp)"
-trap 'rm -f "$ROOT_CHECK_LOG" "$SSO_CHECK_LOG"' EXIT
+N8N_OWNER_LOG="$(mktemp)"
+trap 'rm -f "$ROOT_CHECK_LOG" "$SSO_CHECK_LOG" "$N8N_OWNER_LOG"' EXIT
 
 require() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -109,6 +110,14 @@ if ./scripts/apply-argocd-sso.sh --check >"$SSO_CHECK_LOG" 2>&1; then
 else
   echo "argocd sso preflight: pending"
   sed 's/^/  /' "$SSO_CHECK_LOG"
+  mark_failed
+fi
+
+if ./scripts/bootstrap-n8n-owner.sh --check >"$N8N_OWNER_LOG" 2>&1; then
+  echo "n8n owner and forward-auth: ok"
+else
+  echo "n8n owner and forward-auth: pending"
+  sed 's/^/  /' "$N8N_OWNER_LOG"
   mark_failed
 fi
 

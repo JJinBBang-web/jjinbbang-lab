@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespaces/argocd.yaml
+  - namespaces/authentik.yaml
+  - namespaces/cert-manager.yaml
+  - namespaces/n8n.yaml
+  - namespaces/sealed-secrets.yaml
+  - traefik/helmchartconfig.yaml
+  - applications/sealed-secrets.yaml
+  - applications/authentik.yaml
+  - applications/n8n.yaml
+  - argocd/argocd-cmd-params-cm.yaml
+  - argocd/argocd-public-ingress.yaml
+  - cert-manager/clusterissuer-letsencrypt-http01.yaml

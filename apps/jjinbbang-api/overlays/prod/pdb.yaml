@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: jjinbbang-api
+  labels:
+    app.kubernetes.io/name: jjinbbang-api
+    app.kubernetes.io/instance: jjinbbang-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jjinbbang-api
+      app.kubernetes.io/instance: jjinbbang-api

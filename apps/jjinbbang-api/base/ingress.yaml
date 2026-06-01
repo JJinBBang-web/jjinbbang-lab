@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jjinbbang-api
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-http01
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  labels:
+    app.kubernetes.io/name: jjinbbang-api
+    app.kubernetes.io/instance: jjinbbang-api
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - api.example.invalid
+      secretName: jjinbbang-api-public-tls
+  rules:
+    - host: api.example.invalid
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jjinbbang-api
+                port:
+                  number: 8080

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jjinbbang-prod
+  labels:
+    app.kubernetes.io/part-of: jjinbbang
+    app.kubernetes.io/environment: prod

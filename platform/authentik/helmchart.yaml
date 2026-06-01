@@ -1,0 +1,57 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: authentik
+  namespace: kube-system
+spec:
+  repo: https://charts.goauthentik.io
+  chart: authentik
+  version: 2026.2.2
+  targetNamespace: authentik
+  createNamespace: true
+  valuesContent: |-
+    authentik:
+      existingSecret:
+        secretName: authentik
+    server:
+      env:
+        - name: AUTHENTIK_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: authentik
+              key: AUTHENTIK_SECRET_KEY
+      ingress:
+        enabled: false
+      nodeSelector:
+        node-role.jjinbbang.dev/ops: "true"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+    worker:
+      nodeSelector:
+        node-role.jjinbbang.dev/ops: "true"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+    postgresql:
+      enabled: true
+      auth:
+        existingSecret: authentik-postgresql
+        database: authentik
+        username: authentik
+        secretKeys:
+          adminPasswordKey: postgres-password
+          userPasswordKey: password
+      primary:
+        nodeSelector:
+          node-role.jjinbbang.dev/ops: "true"
+        persistence:
+          size: 8Gi

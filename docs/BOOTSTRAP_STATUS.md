@@ -1,6 +1,6 @@
 # Bootstrap Status
 
-업데이트: 2026-06-02 01:05 KST
+업데이트: 2026-06-02 02:19 KST
 
 ## 직접 검증한 내용
 
@@ -219,6 +219,37 @@ post-dns readiness ok
   Application manifest를 추가했다. 아직 `platform/kustomization.yaml`에는
   연결하지 않았다.
 - root와 platform child Argo CD Application은 `selfHeal=true`, `prune=false`로 구성했다.
+- `jjinbbang-lab` bootstrap 변경분은 GitHub `main`에 merge됐다.
+- `scripts/apply-root-app.sh --check`가 통과했고 root Application을 live cluster에 적용했다.
+- Argo CD가 platform child Application을 생성했고 모든 Application이 `Synced/Healthy`로 수렴했다.
+
+```text
+authentik            Synced   Healthy
+jjinbbang-platform   Synced   Healthy
+n8n                  Synced   Healthy
+sealed-secrets       Synced   Healthy
+```
+
+- `scripts/status.sh`가 통과했다.
+
+```text
+remote root app on main: HTTP 200
+dns check ok
+root app preflight: ok
+argocd sso preflight: ok
+n8n owner and forward-auth: ok
+status: ready
+```
+- n8n owner를 Authentik bootstrap email과 같은 값으로 생성했다.
+- owner bootstrap password는 live Secret `n8n/n8n-owner-bootstrap`에만 보관한다.
+- n8n `showSetupOnFirstLoad=false`를 확인했고, Authentik email header가 들어오면
+  n8n auth cookie가 발급되는 것을 확인했다.
+
+```text
+showSetupOnFirstLoad=false
+forward_auth_status=200
+forward_auth_cookie=present
+```
 
 - local manifest 검증을 통과했다.
 
@@ -235,22 +266,17 @@ kubectl kustomize jjinbbang-api prod ok
 kubectl kustomize app applications ok
 ```
 
-## 아직 하지 않은 것
+## 남은 수동 작업
 
-- `jjinbbang-lab` 변경분을 commit/push하지 않았다.
-- Argo CD root Application을 적용하지 않았다.
 - Authentik `akadmin`은 생성됐지만 passkey/TOTP 설정은 아직 브라우저에서 완료하지 않았다.
-- n8n 첫 admin user를 만들지 않았다.
-- Argo CD root Application은 원격 GitHub `main` manifest가 아직 없어서
-  guarded script가 적용을 거부한다.
+- API 배포는 `api-dev` DNS, 앱 secret, GHCR image tag가 준비된 뒤
+  `platform/applications/apps`를 별도로 적용한다. `api` production DNS는 기존
+  AWS endpoint cutover 승인 후 변경한다.
 
 ## 다음 운영 순서
 
 1. `https://auth.jjinbbang.kr`에서 `akadmin`으로 로그인하고 passkey/TOTP를 설정한다.
 2. Argo CD는 `https://argo.jjinbbang.kr`에서 Authentik SSO로 로그인 확인한다.
-3. n8n 첫 admin user를 만들고 Authentik email과 n8n email을 맞춘다.
-4. 변경분 commit/push 승인 후 GitHub `main`에 올린다.
-5. 원격 root manifest가 보이면 `./scripts/apply-root-app.sh --check` 후 root Application을 적용한다.
-6. API 배포는 `api-dev` DNS, 앱 secret, GHCR image tag가 준비된 뒤
-   `platform/applications/apps`를 별도로 적용한다. `api` production DNS는 기존
-   AWS endpoint cutover 승인 후 변경한다.
+3. n8n은 `https://n8n.jjinbbang.kr`에서 Authentik SSO로 로그인 확인한다.
+4. README와 GitHub Actions workflow 문서/검증 보강분을 별도 PR로 올린다.
+5. API 배포 준비가 끝나면 `api-dev`부터 GitOps Application을 연결한다.

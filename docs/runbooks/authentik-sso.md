@@ -72,7 +72,10 @@ Argo CD manifest는 아래 issuer를 참조한다.
 https://auth.jjinbbang.kr/application/o/argocd/
 ```
 
-client secret은 Kubernetes Secret으로만 저장한다.
+client secret은 Kubernetes Secret으로만 저장한다. Argo CD OIDC 설정은
+`argocd-secret`의 `oidc.authentik.clientSecret` 키만 참조한다.
+`argocd-oidc-secret`은 bootstrap source로 유지하고, guarded script가 이 값을
+`argocd-secret`으로 동기화한다.
 
 ```bash
 kubectl -n argocd create secret generic argocd-oidc-secret \
@@ -91,7 +94,8 @@ preflight를 먼저 확인한다.
 
 이 스크립트는 `auth/argo/n8n` DNS, `authentik-public-tls`,
 `argocd-public-tls`, `n8n-public-tls`, `argocd-oidc-secret`, public OIDC
-discovery가 준비되지 않으면 적용을 거부한다.
+discovery가 준비되지 않으면 적용을 거부한다. 실제 Argo CD가 읽는
+`argocd-secret/oidc.authentik.clientSecret`도 함께 검증한다.
 
 권장 group mapping:
 

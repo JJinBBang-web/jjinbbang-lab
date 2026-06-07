@@ -62,6 +62,9 @@ kubectl -n authentik create secret generic authentik-sso-bootstrap \
 kubectl -n argocd create secret generic argocd-oidc-secret \
   --from-env-file="$tmpdir/argocd-oidc.env" \
   --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n argocd patch secret argocd-secret --type merge \
+  -p "{\"data\":{\"oidc.authentik.clientSecret\":\"$(printf %s "$argocd_secret" | base64 | tr -d '\n')\"}}"
 ```
 
 초기 admin 비밀번호는 cluster Secret에서만 조회한다.
@@ -77,14 +80,19 @@ Authentik OAuth2/OpenID Provider 생성 후 client secret을 넣는다. 위
 bootstrap 절차를 쓰는 경우 같은 값이 자동으로 만들어진다.
 
 ```bash
+argocd_secret='REPLACE_WITH_AUTHENTIK_CLIENT_SECRET'
+
 kubectl -n argocd create secret generic argocd-oidc-secret \
-  --from-literal=clientSecret='REPLACE_WITH_AUTHENTIK_CLIENT_SECRET'
+  --from-literal=clientSecret="$argocd_secret"
+
+kubectl -n argocd patch secret argocd-secret --type merge \
+  -p "{\"data\":{\"oidc.authentik.clientSecret\":\"$(printf %s "$argocd_secret" | base64 | tr -d '\n')\"}}"
 ```
 
 Argo CD `argocd-cm`은 다음 참조를 사용한다.
 
 ```text
-$argocd-oidc-secret:clientSecret
+$oidc.authentik.clientSecret
 ```
 
 ## n8n

@@ -96,6 +96,30 @@ expect_certificate_ready() {
   fi
 }
 
+sync_argocd_oidc_secret() {
+  ssh_core 'bash -s' <<'REMOTE'
+set -euo pipefail
+
+client_secret="$(sudo k3s kubectl -n argocd get secret argocd-oidc-secret -o jsonpath="{.data.clientSecret}")"
+sudo k3s kubectl -n argocd patch secret argocd-secret --type merge \
+  -p "{\"data\":{\"oidc.authentik.clientSecret\":\"$client_secret\"}}" >/dev/null
+REMOTE
+}
+
+expect_argocd_oidc_secret_resolvable() {
+  ssh_core 'bash -s' <<'REMOTE'
+set -euo pipefail
+
+source_secret="$(sudo k3s kubectl -n argocd get secret argocd-oidc-secret -o jsonpath="{.data.clientSecret}" | base64 -d | sha256sum | awk "{print \$1}")"
+resolved_secret="$(sudo k3s kubectl -n argocd get secret argocd-secret -o jsonpath="{.data.oidc\\.authentik\\.clientSecret}" 2>/dev/null | base64 -d | sha256sum | awk "{print \$1}")"
+
+if [[ -z "$resolved_secret" || "$source_secret" != "$resolved_secret" ]]; then
+  echo "argocd-secret/oidc.authentik.clientSecret is missing or does not match argocd-oidc-secret/clientSecret" >&2
+  exit 1
+fi
+REMOTE
+}
+
 require curl
 require dig
 require kubectl
@@ -118,6 +142,9 @@ expect_certificate_ready n8n n8n-public-tls
 echo "== preflight: kubernetes secrets =="
 ssh_core 'sudo k3s kubectl -n argocd get secret argocd-oidc-secret >/dev/null'
 ssh_core 'sudo k3s kubectl -n authentik get secret authentik-sso-bootstrap >/dev/null'
+if [[ "$CHECK_ONLY" == true ]]; then
+  expect_argocd_oidc_secret_resolvable
+fi
 
 echo "== preflight: public oidc =="
 expect_https "https://auth.$ZONE_NAME/application/o/argocd/.well-known/openid-configuration" 200
@@ -129,6 +156,9 @@ if [[ "$CHECK_ONLY" == true ]]; then
   echo "argocd sso preflight ok"
   exit 0
 fi
+
+echo "== sync argocd oidc secret =="
+sync_argocd_oidc_secret
 
 echo "== apply argocd sso overlay =="
 ssh_core 'cat >/tmp/jjinbbang-lab-argocd-sso.yaml && sudo k3s kubectl apply -f /tmp/jjinbbang-lab-argocd-sso.yaml' \

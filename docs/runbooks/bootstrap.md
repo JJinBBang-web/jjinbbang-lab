@@ -158,7 +158,9 @@ ssh -i "$JJINBBANG_LAB_SSH_KEY" ubuntu@"$CORE_PUBLIC_IP" '
 
 초기 root Application은 잠금 방지를 위해 Argo CD OIDC/RBAC 전환 설정을
 제외한다. Authentik Provider, `argocd-oidc-secret`, public DNS, TLS가 준비된
-뒤 `platform/argocd/sso` overlay를 별도로 적용한다.
+뒤 `platform/argocd/sso` overlay를 별도로 적용한다. Argo CD가 실제로 읽는
+client secret은 `argocd-secret/oidc.authentik.clientSecret`이고,
+`scripts/apply-argocd-sso.sh`가 `argocd-oidc-secret` 값을 이 키로 동기화한다.
 
 Root와 platform child Application은 `selfHeal=true`, `prune=false`로 둔다.
 변경 drift는 자동 복구하지만, 삭제성 prune은 초기 랩 안정화 전에는 수동으로
@@ -287,6 +289,8 @@ EOF
   sudo k3s kubectl -n argocd create secret generic argocd-oidc-secret \
     --from-env-file="$tmpdir/argocd-oidc.env" \
     --dry-run=client -o yaml | sudo k3s kubectl apply -f -
+  sudo k3s kubectl -n argocd patch secret argocd-secret --type merge \
+    -p "{\"data\":{\"oidc.authentik.clientSecret\":\"$(printf %s "$argocd_secret" | base64 | tr -d "\n")\"}}"
 '
 ```
 

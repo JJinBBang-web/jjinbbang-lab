@@ -14,7 +14,7 @@ data:
     name: Authentik
     issuer: https://auth.jjinbbang.kr/application/o/argocd/
     clientID: argocd
-    clientSecret: $argocd-oidc-secret:clientSecret
+    clientSecret: $oidc.authentik.clientSecret
     requestedScopes:
       - openid
       - profile

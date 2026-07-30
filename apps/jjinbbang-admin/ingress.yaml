@@ -1,0 +1,42 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jjinbbang-admin
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-http01
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  labels:
+    app.kubernetes.io/name: jjinbbang-admin
+    app.kubernetes.io/part-of: jjinbbang-admin
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - admin.jjinbbang.kr
+      secretName: jjinbbang-admin-public-tls
+  rules:
+    - host: admin.jjinbbang.kr
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: jjinbbang-admin-server
+                port:
+                  number: 8080
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: jjinbbang-admin-server
+                port:
+                  number: 8080
+          - path: /login
+            pathType: Prefix
+            backend:
+              service:
+                name: jjinbbang-admin-server
+                port:
+                  number: 8080

@@ -26,3 +26,14 @@ Current app scaffold:
 - Both overlays expect a live Secret named `jjinbbang-api-secrets` in the target namespace.
 - API pods avoid the control-plane node by excluding `node-role.jjinbbang.dev/core`.
 - Optional Argo CD Applications live under `platform/applications/apps` and are not referenced by `platform/kustomization.yaml` yet.
+
+Admin API:
+
+- `apps/jjinbbang-admin`은 관리자 Spring 서버를 `admin.jjinbbang.kr`의
+  `/api`, `/oauth2`, `/login` 경로로 노출한다.
+- 관리자 프론트엔드 Deployment와 루트 경로는 프론트 담당 범위이므로 포함하지 않는다.
+- 서버 두 replica는 MySQL-backed Spring Session을 공유한다.
+- `jjinbbang-admin-secrets`와 MySQL, DNS, 실제 서버 GHCR SHA image가 준비된 뒤
+  `platform/applications/apps/jjinbbang-admin.yaml`을 한 번 적용한다.
+- 이후 image SHA 갱신은 repository dispatch와 Argo CD auto sync로 진행하며
+  prune은 자동 실행하지 않는다.

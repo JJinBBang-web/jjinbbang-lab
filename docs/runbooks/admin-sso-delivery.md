@@ -1,0 +1,115 @@
+# Admin API SSO and Delivery Runbook
+
+찐빵 관리자 API는 `admin.jjinbbang.kr`의 인증·API 경로로 노출한다.
+브라우저에는 HttpOnly 세션 쿠키만 남기고 OIDC 토큰은 관리자 서버가 보관한다.
+관리자 프론트엔드 Deployment와 루트 경로는 이 저장소의 이번 작업 범위에
+포함하지 않는다.
+
+## 요청 경로
+
+| 경로 | 대상 |
+| --- | --- |
+| `/api`, `/oauth2`, `/login` | `jjinbbang-admin-server` |
+
+로그인 시작 경로는 `/oauth2/authorization/authentik`이다. Authentik 인증이
+끝나면 Spring Security가 `/login/oauth2/code/authentik`에서 callback을
+받고 기본적으로 `/api/admin/auth/me`로 이동한다. 프론트엔드는
+`ADMIN_LOGIN_SUCCESS_URI`를 화면 경로로 바꾸고, 서버가 제공하는 로그인
+시작·세션 조회·CSRF 조회·로그아웃 API 계약을 사용한다.
+
+회원가입, 비밀번호, MFA는 Authentik에서만 관리한다. 애플리케이션은
+`(issuer, subject)`로 `admins` 행을 처음 로그인할 때 만들고 이후 프로필과
+마지막 로그인 시각을 동기화한다.
+
+## 권한 경계
+
+- 관리자 앱 전용 그룹: `jjinbbang-backoffice-admins`
+- 기존 운영 도구 그룹 `jjinbbang-admins`와 분리한다.
+- Authentik Application policy와 Spring 서버의 `groups` claim 검증을 모두
+  통과해야 한다.
+- 로컬 `admins.status=DEACTIVATED`이면 Authentik 로그인이 성공해도 거부한다.
+
+첫 운영자 `ryuwon`은 bootstrap blueprint에서 앱 전용 그룹에 포함한다. 다른
+운영자는 Authentik에서 이 그룹에 명시적으로 추가한다.
+
+## Main 배포 흐름
+
+```text
+jjinbbang-server main
+-> test/build
+-> GHCR에 전체 Git SHA 태그로 이미지 게시
+-> GitHub App으로 jjinbbang-lab repository_dispatch
+-> apps/jjinbbang-admin/kustomization.yaml 서버 이미지 갱신
+-> manifest 전체 검증
+-> jjinbbang-lab main 자동 커밋
+-> Argo CD self-heal sync (prune=false)
+```
+
+`jjinbbang-server` 저장소에 다음 Actions Secret을 설정한다.
+
+```text
+GITOPS_APP_ID
+GITOPS_APP_PRIVATE_KEY
+```
+
+GitHub App은 `JJinBBang-web/jjinbbang-lab`의 Contents read/write 권한만
+부여한다. 개인 PAT는 사용하지 않는다. 각 앱 이미지 게시에는 저장소 기본
+`GITHUB_TOKEN`의 Packages write 권한을 쓴다.
+
+`jjinbbang-lab` 저장소의 Actions workflow permission도 `Read and write`로
+설정한다. `main` branch protection을 켠 경우 GitHub Actions bot의 이 자동
+커밋 경로를 허용하거나, 정책상 직접 push가 불가능하면 별도 승인 후 PR 생성
+방식으로 바꾼다.
+
+## 최초 활성화 전 게이트
+
+아래 조건을 모두 충족하기 전에는 `jjinbbang-admin` Argo CD Application을
+적용하지 않는다.
+
+1. `admin.jjinbbang.kr`가 worker edge를 가리킨다.
+2. 빈 MySQL database와 전용 사용자가 준비되어 있다.
+3. `jjinbbang-admin/jjinbbang-admin-secrets`가 존재하며 `DB_*`,
+   `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET` 키를 가진다.
+4. Authentik bootstrap Secret에 같은 `ADMIN_OIDC_CLIENT_SECRET`이 들어 있고
+   blueprint Job 재적용이 성공했다.
+5. 서버 GHCR image가 실제 SHA 태그로 존재하며 클러스터에서 pull 가능하다.
+6. `apps/jjinbbang-admin/kustomization.yaml`의 `bootstrap` 태그가 실제 SHA로
+   교체되어 있다.
+
+준비 후 Authentik blueprint를 다시 적용한다.
+
+```bash
+kubectl -n authentik delete job authentik-apply-blueprints --ignore-not-found
+kubectl apply -k platform/authentik/bootstrap
+kubectl -n authentik wait --for=condition=complete \
+  job/authentik-apply-blueprints --timeout=300s
+```
+
+그 다음 앱 Application을 한 번 활성화한다.
+
+```bash
+kubectl apply -f platform/applications/apps/jjinbbang-admin.yaml
+kubectl -n argocd get application jjinbbang-admin
+kubectl -n jjinbbang-admin rollout status deployment/jjinbbang-admin-server --timeout=300s
+```
+
+## 검증
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  https://admin.jjinbbang.kr/api/admin/auth/me
+curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' \
+  https://admin.jjinbbang.kr/oauth2/authorization/authentik
+```
+
+로그아웃 상태의 `/api/admin/auth/me` 기대값은 `401`이고 로그인 시작 경로는
+Authentik으로 `302` 응답해야 한다. 실제 계정 로그인과 로그아웃은 Authentik
+Provider, DNS, Secret 적용 후 브라우저에서 검증한다. 프론트팀은 서버 API
+계약을 기준으로 화면 진입과 보호 라우트를 연결한다.
+
+## 롤백
+
+앱 코드 롤백은 `kustomization.yaml`의 해당 image tag를 직전 정상 SHA로
+되돌린다. DB migration은 이미 적용된 파일을 수정하지 않고 새 Flyway migration
+으로만 보정한다. Argo CD는 `prune=false`이므로 리소스 삭제는 별도 승인 후
+수동으로 처리한다.

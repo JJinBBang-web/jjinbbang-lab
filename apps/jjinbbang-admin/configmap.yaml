@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jjinbbang-admin-server-config
+  labels:
+    app.kubernetes.io/name: jjinbbang-admin-server
+    app.kubernetes.io/part-of: jjinbbang-admin
+data:
+  SPRING_PROFILES_ACTIVE: prod
+  AUTHENTIK_ISSUER_URI: https://auth.jjinbbang.kr/application/o/jjinbbang-admin/
+  AUTHENTIK_ADMIN_GROUP: jjinbbang-backoffice-admins
+  ADMIN_LOGIN_SUCCESS_URI: /api/admin/auth/me

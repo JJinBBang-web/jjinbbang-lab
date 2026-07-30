@@ -14,7 +14,7 @@ manifest, 운영 도구, 접근 제어, runbook만 둔다.
 | Ingress | k3s packaged Traefik, worker node 2대만 public edge |
 | DNS | Cloudflare, 초기 안정화 단계에서는 `DNS only` |
 | TLS | cert-manager HTTP-01, Let's Encrypt |
-| SSO | Authentik, Argo CD OIDC, n8n forward-auth |
+| SSO | Authentik, Argo CD OIDC, n8n forward-auth, 관리자 API OIDC |
 | Secret | 원문 secret은 repo 금지, live Secret 이후 Sealed Secrets 이관 |
 
 현재 live cluster는 DNS, TLS, Authentik, n8n, Argo CD SSO, Argo CD root
@@ -61,6 +61,7 @@ Canonical hostnames:
 auth.jjinbbang.kr
 argo.jjinbbang.kr
 n8n.jjinbbang.kr
+admin.jjinbbang.kr
 ```
 
 ## Argo CD 설계
@@ -86,6 +87,7 @@ flowchart TB
   Apps -.-> AppApps["platform/applications/apps<br/>optional"]
   AppApps -.-> ApiDev["jjinbbang-api-dev<br/>future"]
   AppApps -.-> ApiProd["jjinbbang-api-prod<br/>cutover gated"]
+  AppApps -.-> Admin["jjinbbang-admin<br/>secret·DB·DNS 준비 후 활성화"]
 
   SSO["platform/argocd/sso<br/>guarded overlay<br/>preflight 이후 수동 적용"] -.-> ArgoSSO["argocd-cm / argocd-rbac-cm"]
 ```
@@ -130,12 +132,14 @@ SSO 기준:
 - `n8n.jjinbbang.kr`: Traefik forwardAuth와 Authentik Proxy Provider로 보호한다.
 - `jjinbbang-admins`: Argo CD admin, n8n 접근 권한 기준 group.
 - `jjinbbang-observers`: Argo CD readonly group.
+- `jjinbbang-backoffice-admins`: 찐빵 관리자 API 접근 group.
 
 ## 저장소 구조
 
 | 경로 | 역할 |
 | --- | --- |
 | `.github/workflows/validate.yml` | manifest 검증 CI |
+| `.github/workflows/update-admin-image.yml` | 관리자 서버 main 이미지 digest를 검증해 GitOps desired state에 반영 |
 | `platform/bootstrap` | 최초 root Argo CD Application |
 | `platform/applications` | Argo CD가 관리할 platform Application 목록 |
 | `platform/argocd` | Argo CD public ingress와 SSO 전환용 설정 |
@@ -146,6 +150,9 @@ SSO 기준:
 | `apps` | 찐빵 서비스 앱 manifest를 추가할 위치 |
 | `platform/secrets` | repo에 넣지 않는 live Secret 계약 문서 |
 | `docs/runbooks` | bootstrap, DNS, SSO 운영 절차 |
+
+관리자 API의 SSO, Secret, 최초 활성화와 자동 배포 절차는
+`docs/runbooks/admin-sso-delivery.md`를 따른다.
 
 ## Bootstrap 절차
 
@@ -205,14 +212,14 @@ DNS_SERVER=1.1.1.1 ./scripts/status.sh
 | Prefix | 용도 | 기준 |
 | --- | --- | --- |
 | `init/*` | repo, platform, 서비스 최초 초기화 | 초기 bootstrap 작업 |
-| `feat/*` | 기능 추가 | `develop` 기준 분기 |
-| `fix/*` | 일반 버그 수정 | `develop` 기준 분기 |
-| `hotfix/*` | 운영 긴급 수정 | `master` 기준 분기, `develop`에도 반영 |
-| `release/*` | 릴리즈 준비 | `develop` 안정화 후 |
+| `feat/*` | 기능 추가 | `main` 기준 분기 |
+| `fix/*` | 일반 버그 수정 | `main` 기준 분기 |
+| `hotfix/*` | 운영 긴급 수정 | `main` 기준 분기 |
+| `release/*` | 릴리즈 준비 | `main` 안정화 후 |
 | `docs/*` | 문서만 변경 | 코드/manifest 변경 없음 |
 | `chore/*` | 관리성 작업 | 동작 변경 최소 |
 
-기본 승격 흐름은 `작업 브랜치 -> develop -> master`다. `hotfix/*`는 운영 장애처럼
+현재 기본 승격 흐름은 `작업 브랜치 -> main`이다. `hotfix/*`는 운영 장애처럼
 일반 승격 흐름을 기다릴 수 없을 때만 사용한다.
 
 ### Commit Message

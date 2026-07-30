@@ -9,7 +9,8 @@ Authentik은 운영 도구 접근의 SSO 기준이다.
 읽고 다음 blueprint를 적용한다.
 
 - `/blueprints/system/bootstrap.yaml`: 초기 admin 생성.
-- `jjinbbang-sso.yaml`: `ryuwon` admin 보정, Argo CD OIDC Provider, n8n Proxy Provider, Embedded Outpost 연결.
+- `jjinbbang-sso.yaml`: `ryuwon` admin 보정, Argo CD와 관리자 앱 OIDC Provider,
+  n8n Proxy Provider, Embedded Outpost 연결.
 - Job 후처리: Embedded Outpost의 internal host와 browser host를 고정.
 
 embedded outpost가 OIDC discovery URL을 public host로 만들려면
@@ -50,8 +51,8 @@ https://auth.jjinbbang.kr/if/flow/initial-setup/
 ```
 
 Bootstrap Job을 사용하면 `ryuwon` admin 사용자는 이미 만들어져 있다. 최초 로그인
-후 passkey와 TOTP를 모두 등록한다. 이 사용자는 `authentik Admins`와
-`jjinbbang-admins` group에 속한다.
+후 passkey와 TOTP를 모두 등록한다. 이 사용자는 `authentik Admins`,
+`jjinbbang-admins`, `jjinbbang-backoffice-admins` group에 속한다.
 
 ## 3. Argo CD OIDC Provider
 
@@ -108,7 +109,23 @@ jjinbbang-observers -> role:readonly
 권한을 받는다. Argo CD RBAC에서는 `jjinbbang-admins`와
 `jjinbbang-observers`를 기준으로 권한을 나눈다.
 
-## 4. n8n Proxy Provider
+## 4. 찐빵 관리자 OIDC Provider
+
+관리자 앱은 인프라 도구와 다른 `jjinbbang-backoffice-admins` 그룹을 사용한다.
+
+| 항목 | 값 |
+| --- | --- |
+| Name / slug | `jjinbbang-admin` |
+| Client type | Confidential |
+| Redirect URI | `https://admin.jjinbbang.kr/login/oauth2/code/authentik` |
+| Post logout URI | `https://admin.jjinbbang.kr/login?logout` |
+| Issuer | `https://auth.jjinbbang.kr/application/o/jjinbbang-admin/` |
+
+client secret은 `authentik-sso-bootstrap`의 `ADMIN_OIDC_CLIENT_SECRET`과 관리자
+서버 Secret의 `AUTHENTIK_CLIENT_SECRET`에 같은 값으로 넣는다. 앱 자체
+회원가입은 제공하지 않는다.
+
+## 5. n8n Proxy Provider
 
 n8n은 Authentik Proxy Provider와 Traefik forwardAuth로 보호한다. Bootstrap
 Job을 사용하면 Proxy Provider와 Embedded Outpost 연결이 이미 만들어져 있다.
@@ -141,7 +158,7 @@ curl -k --resolve n8n.jjinbbang.kr:443:$WORKER_1_PUBLIC_IP \
 
 정상 기대값은 `204`다.
 
-## 5. n8n 내부 사용자
+## 6. n8n 내부 사용자
 
 n8n Community에서는 공식 내부 OIDC SSO 대신 forward-auth shim을 쓴다.
 Authentik user email과 n8n user email이 같아야 자동 cookie 발급이 가능하다.
@@ -171,7 +188,7 @@ n8n pod 로그에서 shim 로드도 확인한다.
 n8n forward-auth SSO shim enabled
 ```
 
-## 6. 복구
+## 7. 복구
 
 SSO가 깨지면 다음 순서로 복구한다.
 

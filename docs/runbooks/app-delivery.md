@@ -6,7 +6,7 @@
 
 | Repo | 역할 |
 | --- | --- |
-| `JJinBBang_BE` | Spring Boot 코드, 테스트, 이미지 빌드 |
+| `jjinbbang-server` | 통합 Spring Boot 코드, 테스트, 이미지 빌드 |
 | `jjinbbang-lab` | Kubernetes manifest, Argo CD Application, 배포 환경 값 |
 
 앱 코드 repo에서 Kubernetes resource를 직접 적용하지 않는다.
@@ -14,21 +14,21 @@
 ## 2. Image 흐름
 
 ```text
-JJinBBang_BE pull request
+jjinbbang-server pull request
 -> GitHub Actions test
 -> image build
--> ghcr.io/jjinbbang-web/jjinbbang-api:<git-sha>
+-> ghcr.io/jjinbbang-web/jjinbbang-server:<git-sha>
 -> jjinbbang-lab apps/jjinbbang-api/overlays/dev image tag update
 -> Argo CD sync
 ```
 
 이 repo 자체는 `.github/workflows/validate.yml`에서 YAML parse, shell syntax,
 Kustomize build를 검증한다. 실제 앱 이미지 빌드/스캔 workflow는
-`JJinBBang_BE` repo에 둔다.
+`jjinbbang-server` repo에 둔다.
 
 ## 3. 필요한 GitHub 설정
 
-`JJinBBang_BE` repo:
+`jjinbbang-server` repo:
 
 ```text
 packages: write
@@ -149,7 +149,9 @@ prerequisites are ready, then let the platform root Application sync it.
 
 ## 7. 승격 흐름
 
-기본 승격은 `feat -> develop -> master`다.
+현재 lab 저장소의 기본 승격은 `feat -> main`이다. `develop` 또는 `master`
+브랜치를 추가하기 전에는 문서와 Argo CD `targetRevision` 모두 `main`을
+단일 운영 기준으로 사용한다.
 
 1. feature branch에서 앱 코드 변경.
 2. PR에서 test/build/scan 통과.

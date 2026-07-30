@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: jjinbbang-admin-server
+  labels:
+    app.kubernetes.io/name: jjinbbang-admin-server
+    app.kubernetes.io/part-of: jjinbbang-admin
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jjinbbang-admin-server

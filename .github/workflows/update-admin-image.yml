@@ -1,0 +1,132 @@
+name: Update admin API image
+
+on:
+  repository_dispatch:
+    types:
+      - admin-image-built
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: update-admin-api-image
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.GITOPS_APP_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: JJinBBang-web
+          repositories: jjinbbang-lab
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate dispatch payload
+        env:
+          COMPONENT: ${{ github.event.client_payload.component }}
+          IMAGE: ${{ github.event.client_payload.image }}
+          TAG: ${{ github.event.client_payload.tag }}
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.source_repository }}
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
+          IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
+          EVENT_SENDER: ${{ github.event.sender.login }}
+          EXPECTED_SENDER: ${{ vars.GITOPS_DISPATCH_SENDER }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$EXPECTED_SENDER" || "$EVENT_SENDER" != "$EXPECTED_SENDER" ]]; then
+            echo "unexpected dispatch sender: $EVENT_SENDER" >&2
+            exit 1
+          fi
+          if [[ "$COMPONENT" != "server" ]]; then
+            echo "unsupported component: $COMPONENT" >&2
+            exit 1
+          fi
+          if [[ "$IMAGE" != "ghcr.io/jjinbbang-web/jjinbbang-server" ]]; then
+            echo "unexpected image: $IMAGE" >&2
+            exit 1
+          fi
+          if [[ ! "$TAG" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "tag must be a full Git commit SHA" >&2
+            exit 1
+          fi
+          if [[ "$SOURCE_REPOSITORY" != "JJinBBang-web/jjinbbang-server" || "$SOURCE_SHA" != "$TAG" ]]; then
+            echo "unexpected source: $SOURCE_REPOSITORY@$SOURCE_SHA" >&2
+            exit 1
+          fi
+          if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "invalid image digest" >&2
+            exit 1
+          fi
+          MAIN_SHA="$(
+            curl --fail --silent --show-error \
+              --header 'Accept: application/vnd.github+json' \
+              --header 'X-GitHub-Api-Version: 2022-11-28' \
+              "https://api.github.com/repos/$SOURCE_REPOSITORY/commits/main" |
+              jq -r .sha
+          )"
+          if [[ "$MAIN_SHA" != "$SOURCE_SHA" ]]; then
+            echo "source SHA is not the current server main HEAD" >&2
+            exit 1
+          fi
+
+      - name: Verify image digest in GHCR
+        env:
+          IMAGE: ${{ github.event.client_payload.image }}
+          TAG: ${{ github.event.client_payload.tag }}
+          IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
+        run: |
+          set -euo pipefail
+          RESOLVED_DIGEST="$(
+            docker buildx imagetools inspect "$IMAGE:$TAG" \
+              --format '{{json .Manifest}}' | jq -r .digest
+          )"
+          if [[ "$RESOLVED_DIGEST" != "$IMAGE_DIGEST" ]]; then
+            echo "image digest does not match GHCR manifest" >&2
+            exit 1
+          fi
+
+      - uses: imranismail/setup-kustomize@2ba527d4d055ab63514ba50a99456fc35684947f # v2
+
+      - name: Update immutable image digest
+        env:
+          IMAGE: ${{ github.event.client_payload.image }}
+          IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
+        run: |
+          cd apps/jjinbbang-admin
+          kustomize edit set image "$IMAGE=$IMAGE@$IMAGE_DIGEST"
+
+      - uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
+
+      - name: Validate desired state
+        run: ./scripts/validate-manifests.sh
+
+      - name: Commit desired state
+        env:
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
+        run: |
+          if git diff --quiet; then
+            echo "image tag is already current"
+            exit 0
+          fi
+          git config user.name "jjinbbang-gitops[bot]"
+          git config user.email "jjinbbang-gitops[bot]@users.noreply.github.com"
+          git add apps/jjinbbang-admin/kustomization.yaml
+          git commit -m "🔧 Chore: 관리자 API 이미지 ${SOURCE_SHA} 반영"
+          git push origin HEAD:main

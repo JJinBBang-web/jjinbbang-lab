@@ -41,8 +41,10 @@ AUTHENTIK_BOOTSTRAP_PASSWORD=$(openssl rand -base64 36)
 EOF
 
 argocd_secret="$(openssl rand -base64 48)"
+admin_oidc_secret="$(openssl rand -base64 48)"
 cat >"$tmpdir/authentik-sso-bootstrap.env" <<EOF
 ARGOCD_OIDC_CLIENT_SECRET=$argocd_secret
+ADMIN_OIDC_CLIENT_SECRET=$admin_oidc_secret
 N8N_PROXY_CLIENT_SECRET=$(openssl rand -base64 48)
 N8N_PROXY_COOKIE_SECRET=$(openssl rand -hex 32)
 EOF
@@ -66,6 +68,10 @@ kubectl -n argocd create secret generic argocd-oidc-secret \
 kubectl -n argocd patch secret argocd-secret --type merge \
   -p "{\"data\":{\"oidc.authentik.clientSecret\":\"$(printf %s "$argocd_secret" | base64 | tr -d '\n')\"}}"
 ```
+
+같은 `admin_oidc_secret` 값을 관리자 API 서버 Secret의
+`AUTHENTIK_CLIENT_SECRET`에 넣는다. 쉘 히스토리나 저장소 파일에는 값을 남기지
+않는다.
 
 초기 admin 비밀번호는 cluster Secret에서만 조회한다.
 
@@ -149,6 +155,27 @@ kubectl -n jjinbbang-prod create secret generic jjinbbang-api-secrets \
 
 OAuth provider, mail, and OpenAI keys are app-dependent. Add only the keys the
 running application actually reads; keep raw values out of Git.
+
+## Jjinbbang Admin
+
+관리자 API는 MySQL과 Authentik OIDC 비밀값을 같은 live Secret에서 읽는다.
+`DB_URL`은 Flyway가 접속할 빈 스키마를 가리켜야 하며, Hibernate가 테이블을
+생성하도록 두지 않는다.
+
+```bash
+kubectl create namespace jjinbbang-admin --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n jjinbbang-admin create secret generic jjinbbang-admin-secrets \
+  --from-literal=DB_URL='jdbc:mysql://<mysql-host>:3306/<database>?serverTimezone=UTC' \
+  --from-literal=DB_USERNAME='<value>' \
+  --from-literal=DB_PASSWORD='<value>' \
+  --from-literal=AUTHENTIK_CLIENT_ID='jjinbbang-admin' \
+  --from-literal=AUTHENTIK_CLIENT_SECRET='<same ADMIN_OIDC_CLIENT_SECRET value>' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+GHCR package가 private이면 이 namespace에 image pull Secret을 만들고 Deployment의
+`imagePullSecrets`를 별도 승인 후 추가한다. 가능하면 공개 프로젝트 이미지는
+GHCR package visibility도 public으로 맞춘다.
 
 ## Sealed Secrets 이관 순서
 

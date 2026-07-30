@@ -139,7 +139,7 @@ SSO 기준:
 | 경로 | 역할 |
 | --- | --- |
 | `.github/workflows/validate.yml` | manifest 검증 CI |
-| `.github/workflows/update-admin-image.yml` | 관리자 서버 main 이미지 SHA를 GitOps desired state에 반영 |
+| `.github/workflows/update-admin-image.yml` | 관리자 서버 main 이미지 digest를 검증해 GitOps desired state에 반영 |
 | `platform/bootstrap` | 최초 root Argo CD Application |
 | `platform/applications` | Argo CD가 관리할 platform Application 목록 |
 | `platform/argocd` | Argo CD public ingress와 SSO 전환용 설정 |

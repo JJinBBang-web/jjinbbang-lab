@@ -37,24 +37,37 @@
 ```text
 jjinbbang-server main
 -> test/build
--> GHCR에 전체 Git SHA 태그로 이미지 게시
+-> GHCR에 전체 Git SHA 태그와 digest로 이미지 게시
 -> GitHub App으로 jjinbbang-lab repository_dispatch
--> apps/jjinbbang-admin/kustomization.yaml 서버 이미지 갱신
+-> 발신 App, server main SHA, image digest 검증
+-> apps/jjinbbang-admin/kustomization.yaml 서버 image digest 갱신
 -> manifest 전체 검증
 -> jjinbbang-lab main 자동 커밋
 -> Argo CD self-heal sync (prune=false)
 ```
 
-`jjinbbang-server` 저장소에 다음 Actions Secret을 설정한다.
+두 저장소에 다음 Actions Secret을 설정한다.
 
 ```text
 GITOPS_APP_ID
 GITOPS_APP_PRIVATE_KEY
 ```
 
-GitHub App은 `JJinBBang-web/jjinbbang-lab`의 Contents read/write 권한만
-부여한다. 개인 PAT는 사용하지 않는다. 각 앱 이미지 게시에는 저장소 기본
-`GITHUB_TOKEN`의 Packages write 권한을 쓴다.
+GitHub App은 `jjinbbang-server` Contents read와 `jjinbbang-lab` Contents
+read/write 권한을 가진다. 개인 PAT는 사용하지 않는다. 각 앱 이미지 게시에는
+저장소 기본 `GITHUB_TOKEN`의 Packages write 권한을 쓴다.
+
+`jjinbbang-lab` Actions variable에는 repository dispatch를 보내는 GitHub App
+bot login을 정확히 설정한다.
+
+```text
+GITOPS_DISPATCH_SENDER=jjinbbang-gitops[bot]
+```
+
+실제 App slug가 다르면 GitHub audit log 또는 최초 거부된 workflow의
+`unexpected dispatch sender` 값으로 확인해 variable만 맞춘다. 수신 workflow는
+발신자, source repository, server `main` HEAD, image digest가 모두 일치해야만
+desired state를 변경한다.
 
 `jjinbbang-lab` 저장소의 Actions workflow permission도 `Read and write`로
 설정한다. `main` branch protection을 켠 경우 GitHub Actions bot의 이 자동
@@ -73,8 +86,8 @@ GitHub App은 `JJinBBang-web/jjinbbang-lab`의 Contents read/write 권한만
 4. Authentik bootstrap Secret에 같은 `ADMIN_OIDC_CLIENT_SECRET`이 들어 있고
    blueprint Job 재적용이 성공했다.
 5. 서버 GHCR image가 실제 SHA 태그로 존재하며 클러스터에서 pull 가능하다.
-6. `apps/jjinbbang-admin/kustomization.yaml`의 `bootstrap` 태그가 실제 SHA로
-   교체되어 있다.
+6. `apps/jjinbbang-admin/kustomization.yaml`의 `bootstrap` 태그가 실제
+   `sha256` image digest로 교체되어 있다.
 
 준비 후 Authentik blueprint를 다시 적용한다.
 
@@ -109,7 +122,7 @@ Provider, DNS, Secret 적용 후 브라우저에서 검증한다. 프론트팀�
 
 ## 롤백
 
-앱 코드 롤백은 `kustomization.yaml`의 해당 image tag를 직전 정상 SHA로
+앱 코드 롤백은 `kustomization.yaml`의 image digest를 직전 정상 digest로
 되돌린다. DB migration은 이미 적용된 파일을 수정하지 않고 새 Flyway migration
 으로만 보정한다. Argo CD는 `prune=false`이므로 리소스 삭제는 별도 승인 후
 수동으로 처리한다.

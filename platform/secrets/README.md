@@ -177,6 +177,17 @@ GHCR package가 private이면 이 namespace에 image pull Secret을 만들고 De
 `imagePullSecrets`를 별도 승인 후 추가한다. 가능하면 공개 프로젝트 이미지는
 GHCR package visibility도 public으로 맞춘다.
 
+관리자 API 이미지 GitOps 자동 갱신에는 `jjinbbang-server`와 `jjinbbang-lab`
+저장소 Actions Secret에 동일한 GitHub App 자격 증명을 등록한다.
+
+```text
+GITOPS_APP_ID
+GITOPS_APP_PRIVATE_KEY
+```
+
+App 권한은 server Contents read, lab Contents read/write로 제한한다. lab
+Actions variable `GITOPS_DISPATCH_SENDER`에는 이 App의 bot login을 등록한다.
+
 ## Sealed Secrets 이관 순서
 
 1. 더미 secret seal/unseal 검증.

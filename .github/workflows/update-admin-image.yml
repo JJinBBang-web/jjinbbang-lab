@@ -6,7 +6,7 @@ on:
       - admin-image-built
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: update-admin-api-image
@@ -16,17 +16,36 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.GITOPS_APP_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: JJinBBang-web
+          repositories: jjinbbang-server,jjinbbang-lab
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Validate dispatch payload
         env:
           COMPONENT: ${{ github.event.client_payload.component }}
           IMAGE: ${{ github.event.client_payload.image }}
           TAG: ${{ github.event.client_payload.tag }}
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.source_repository }}
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
+          IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
+          EVENT_SENDER: ${{ github.event.sender.login }}
+          EXPECTED_SENDER: ${{ vars.GITOPS_DISPATCH_SENDER }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
+          if [[ -z "$EXPECTED_SENDER" || "$EVENT_SENDER" != "$EXPECTED_SENDER" ]]; then
+            echo "unexpected dispatch sender: $EVENT_SENDER" >&2
+            exit 1
+          fi
           if [[ "$COMPONENT" != "server" ]]; then
             echo "unsupported component: $COMPONENT" >&2
             exit 1
@@ -39,25 +58,38 @@ jobs:
             echo "tag must be a full Git commit SHA" >&2
             exit 1
           fi
+          if [[ "$SOURCE_REPOSITORY" != "JJinBBang-web/jjinbbang-server" || "$SOURCE_SHA" != "$TAG" ]]; then
+            echo "unexpected source: $SOURCE_REPOSITORY@$SOURCE_SHA" >&2
+            exit 1
+          fi
+          if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "invalid image digest" >&2
+            exit 1
+          fi
+          MAIN_SHA="$(gh api "repos/$SOURCE_REPOSITORY/commits/main" --jq .sha)"
+          if [[ "$MAIN_SHA" != "$SOURCE_SHA" ]]; then
+            echo "source SHA is not the current server main HEAD" >&2
+            exit 1
+          fi
 
-      - uses: imranismail/setup-kustomize@v2
+      - uses: imranismail/setup-kustomize@2ba527d4d055ab63514ba50a99456fc35684947f # v2
 
-      - name: Update immutable image tag
+      - name: Update immutable image digest
         env:
           IMAGE: ${{ github.event.client_payload.image }}
-          TAG: ${{ github.event.client_payload.tag }}
+          IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
         run: |
           cd apps/jjinbbang-admin
-          kustomize edit set image "$IMAGE=$IMAGE:$TAG"
+          kustomize edit set image "$IMAGE=$IMAGE@$IMAGE_DIGEST"
 
-      - uses: azure/setup-kubectl@v4
+      - uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
 
       - name: Validate desired state
         run: ./scripts/validate-manifests.sh
 
       - name: Commit desired state
         env:
-          TAG: ${{ github.event.client_payload.tag }}
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
         run: |
           if git diff --quiet; then
             echo "image tag is already current"
@@ -66,5 +98,5 @@ jobs:
           git config user.name "jjinbbang-gitops[bot]"
           git config user.email "jjinbbang-gitops[bot]@users.noreply.github.com"
           git add apps/jjinbbang-admin/kustomization.yaml
-          git commit -m "🔧 Chore: 관리자 API 이미지 ${TAG} 반영"
+          git commit -m "🔧 Chore: 관리자 API 이미지 ${SOURCE_SHA} 반영"
           git push origin HEAD:main

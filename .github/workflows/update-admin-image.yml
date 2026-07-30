@@ -1,0 +1,70 @@
+name: Update admin API image
+
+on:
+  repository_dispatch:
+    types:
+      - admin-image-built
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-admin-api-image
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Validate dispatch payload
+        env:
+          COMPONENT: ${{ github.event.client_payload.component }}
+          IMAGE: ${{ github.event.client_payload.image }}
+          TAG: ${{ github.event.client_payload.tag }}
+        run: |
+          set -euo pipefail
+          if [[ "$COMPONENT" != "server" ]]; then
+            echo "unsupported component: $COMPONENT" >&2
+            exit 1
+          fi
+          if [[ "$IMAGE" != "ghcr.io/jjinbbang-web/jjinbbang-server" ]]; then
+            echo "unexpected image: $IMAGE" >&2
+            exit 1
+          fi
+          if [[ ! "$TAG" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "tag must be a full Git commit SHA" >&2
+            exit 1
+          fi
+
+      - uses: imranismail/setup-kustomize@v2
+
+      - name: Update immutable image tag
+        env:
+          IMAGE: ${{ github.event.client_payload.image }}
+          TAG: ${{ github.event.client_payload.tag }}
+        run: |
+          cd apps/jjinbbang-admin
+          kustomize edit set image "$IMAGE=$IMAGE:$TAG"
+
+      - uses: azure/setup-kubectl@v4
+
+      - name: Validate desired state
+        run: ./scripts/validate-manifests.sh
+
+      - name: Commit desired state
+        env:
+          TAG: ${{ github.event.client_payload.tag }}
+        run: |
+          if git diff --quiet; then
+            echo "image tag is already current"
+            exit 0
+          fi
+          git config user.name "jjinbbang-gitops[bot]"
+          git config user.email "jjinbbang-gitops[bot]@users.noreply.github.com"
+          git add apps/jjinbbang-admin/kustomization.yaml
+          git commit -m "🔧 Chore: 관리자 API 이미지 ${TAG} 반영"
+          git push origin HEAD:main

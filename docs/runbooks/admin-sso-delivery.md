@@ -53,9 +53,10 @@ GITOPS_APP_ID
 GITOPS_APP_PRIVATE_KEY
 ```
 
-GitHub App은 `jjinbbang-server` Contents read와 `jjinbbang-lab` Contents
-read/write 권한을 가진다. 개인 PAT는 사용하지 않는다. 각 앱 이미지 게시에는
-저장소 기본 `GITHUB_TOKEN`의 Packages write 권한을 쓴다.
+GitHub App은 `jjinbbang-lab`에만 설치하고 Contents read/write 권한을 가진다.
+server `main` HEAD는 공개 GitHub API로 읽어 App token의 쓰기 범위를 lab 밖으로
+넓히지 않는다. 개인 PAT는 사용하지 않는다. 각 앱 이미지 게시에는 저장소 기본
+`GITHUB_TOKEN`의 Packages write 권한을 쓴다.
 
 `jjinbbang-lab` Actions variable에는 repository dispatch를 보내는 GitHub App
 bot login을 정확히 설정한다.

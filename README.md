@@ -212,14 +212,14 @@ DNS_SERVER=1.1.1.1 ./scripts/status.sh
 | Prefix | 용도 | 기준 |
 | --- | --- | --- |
 | `init/*` | repo, platform, 서비스 최초 초기화 | 초기 bootstrap 작업 |
-| `feat/*` | 기능 추가 | `develop` 기준 분기 |
-| `fix/*` | 일반 버그 수정 | `develop` 기준 분기 |
-| `hotfix/*` | 운영 긴급 수정 | `master` 기준 분기, `develop`에도 반영 |
-| `release/*` | 릴리즈 준비 | `develop` 안정화 후 |
+| `feat/*` | 기능 추가 | `main` 기준 분기 |
+| `fix/*` | 일반 버그 수정 | `main` 기준 분기 |
+| `hotfix/*` | 운영 긴급 수정 | `main` 기준 분기 |
+| `release/*` | 릴리즈 준비 | `main` 안정화 후 |
 | `docs/*` | 문서만 변경 | 코드/manifest 변경 없음 |
 | `chore/*` | 관리성 작업 | 동작 변경 최소 |
 
-기본 승격 흐름은 `작업 브랜치 -> develop -> master`다. `hotfix/*`는 운영 장애처럼
+현재 기본 승격 흐름은 `작업 브랜치 -> main`이다. `hotfix/*`는 운영 장애처럼
 일반 승격 흐름을 기다릴 수 없을 때만 사용한다.
 
 ### Commit Message

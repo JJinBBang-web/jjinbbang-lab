@@ -185,7 +185,8 @@ GITOPS_APP_ID
 GITOPS_APP_PRIVATE_KEY
 ```
 
-App 권한은 server Contents read, lab Contents read/write로 제한한다. lab
+App은 `jjinbbang-lab`에만 설치하고 Contents read/write로 제한한다. 공개
+`jjinbbang-server`의 `main` HEAD 조회에는 App token을 사용하지 않는다. lab
 Actions variable `GITOPS_DISPATCH_SENDER`에는 이 App의 bot login을 등록한다.
 GHCR package가 private이면 package Actions access에 `jjinbbang-lab` 저장소를
 Read로 추가해 workflow의 제한된 `GITHUB_TOKEN`이 manifest digest를 조회할

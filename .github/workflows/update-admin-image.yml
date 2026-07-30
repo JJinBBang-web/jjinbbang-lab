@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: update-admin-api-image
@@ -28,6 +29,14 @@ jobs:
         with:
           ref: main
           token: ${{ steps.app-token.outputs.token }}
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Validate dispatch payload
         env:
@@ -69,6 +78,22 @@ jobs:
           MAIN_SHA="$(gh api "repos/$SOURCE_REPOSITORY/commits/main" --jq .sha)"
           if [[ "$MAIN_SHA" != "$SOURCE_SHA" ]]; then
             echo "source SHA is not the current server main HEAD" >&2
+            exit 1
+          fi
+
+      - name: Verify image digest in GHCR
+        env:
+          IMAGE: ${{ github.event.client_payload.image }}
+          TAG: ${{ github.event.client_payload.tag }}
+          IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
+        run: |
+          set -euo pipefail
+          RESOLVED_DIGEST="$(
+            docker buildx imagetools inspect "$IMAGE:$TAG" \
+              --format '{{json .Manifest}}' | jq -r .digest
+          )"
+          if [[ "$RESOLVED_DIGEST" != "$IMAGE_DIGEST" ]]; then
+            echo "image digest does not match GHCR manifest" >&2
             exit 1
           fi
 

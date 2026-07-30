@@ -67,7 +67,10 @@ GITOPS_DISPATCH_SENDER=jjinbbang-gitops[bot]
 실제 App slug가 다르면 GitHub audit log 또는 최초 거부된 workflow의
 `unexpected dispatch sender` 값으로 확인해 variable만 맞춘다. 수신 workflow는
 발신자, source repository, server `main` HEAD, image digest가 모두 일치해야만
-desired state를 변경한다.
+desired state를 변경한다. GHCR package가 private이면 package 설정의 Actions
+access에 `JJinBBang-web/jjinbbang-lab`을 Read로 추가한다. 수신 workflow의
+`GITHUB_TOKEN`은 Packages read 외 권한을 사용하지 않고, `image:SHA`가 가리키는
+실제 manifest digest와 dispatch digest를 대조한다.
 
 `jjinbbang-lab` 저장소의 Actions workflow permission도 `Read and write`로
 설정한다. `main` branch protection을 켠 경우 GitHub Actions bot의 이 자동

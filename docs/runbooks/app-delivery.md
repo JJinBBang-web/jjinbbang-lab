@@ -149,7 +149,9 @@ prerequisites are ready, then let the platform root Application sync it.
 
 ## 7. 승격 흐름
 
-기본 승격은 `feat -> develop -> master`다.
+현재 lab 저장소의 기본 승격은 `feat -> main`이다. `develop` 또는 `master`
+브랜치를 추가하기 전에는 문서와 Argo CD `targetRevision` 모두 `main`을
+단일 운영 기준으로 사용한다.
 
 1. feature branch에서 앱 코드 변경.
 2. PR에서 test/build/scan 통과.

@@ -44,10 +44,12 @@ jobs:
           IMAGE: ${{ github.event.client_payload.image }}
           TAG: ${{ github.event.client_payload.tag }}
           SOURCE_REPOSITORY: ${{ github.event.client_payload.source_repository }}
+          SOURCE_REF: ${{ github.event.client_payload.source_ref }}
           SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
           IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
           EVENT_SENDER: ${{ github.event.sender.login }}
           EXPECTED_SENDER: ${{ vars.GITOPS_DISPATCH_SENDER }}
+          DEPLOY_ENVIRONMENT: ${{ github.event.client_payload.environment }}
         run: |
           set -euo pipefail
           if [[ -z "$EXPECTED_SENDER" || "$EVENT_SENDER" != "$EXPECTED_SENDER" ]]; then
@@ -56,6 +58,18 @@ jobs:
           fi
           if [[ "$COMPONENT" != "server" ]]; then
             echo "unsupported component: $COMPONENT" >&2
+            exit 1
+          fi
+          if [[ "$DEPLOY_ENVIRONMENT" != "dev" && "$DEPLOY_ENVIRONMENT" != "prod" ]]; then
+            echo "unsupported deployment environment: $DEPLOY_ENVIRONMENT" >&2
+            exit 1
+          fi
+          EXPECTED_REF="develop"
+          if [[ "$DEPLOY_ENVIRONMENT" == "prod" ]]; then
+            EXPECTED_REF="main"
+          fi
+          if [[ "$SOURCE_REF" != "$EXPECTED_REF" ]]; then
+            echo "environment/source ref mismatch: $DEPLOY_ENVIRONMENT/$SOURCE_REF" >&2
             exit 1
           fi
           if [[ "$IMAGE" != "ghcr.io/jjinbbang-web/jjinbbang-server" ]]; then
@@ -74,15 +88,15 @@ jobs:
             echo "invalid image digest" >&2
             exit 1
           fi
-          MAIN_SHA="$(
+          SOURCE_BRANCH_SHA="$(
             curl --fail --silent --show-error \
               --header 'Accept: application/vnd.github+json' \
               --header 'X-GitHub-Api-Version: 2022-11-28' \
-              "https://api.github.com/repos/$SOURCE_REPOSITORY/commits/main" |
+              "https://api.github.com/repos/$SOURCE_REPOSITORY/commits/$SOURCE_REF" |
               jq -r .sha
           )"
-          if [[ "$MAIN_SHA" != "$SOURCE_SHA" ]]; then
-            echo "source SHA is not the current server main HEAD" >&2
+          if [[ "$SOURCE_BRANCH_SHA" != "$SOURCE_SHA" ]]; then
+            echo "source SHA is not the current server $SOURCE_REF HEAD" >&2
             exit 1
           fi
 
@@ -108,8 +122,9 @@ jobs:
         env:
           IMAGE: ${{ github.event.client_payload.image }}
           IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
+          DEPLOY_ENVIRONMENT: ${{ github.event.client_payload.environment }}
         run: |
-          cd apps/jjinbbang-admin
+          cd "apps/jjinbbang-admin/overlays/$DEPLOY_ENVIRONMENT"
           kustomize edit set image "$IMAGE=$IMAGE@$IMAGE_DIGEST"
 
       - uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
@@ -119,6 +134,7 @@ jobs:
 
       - name: Commit desired state
         env:
+          DEPLOY_ENVIRONMENT: ${{ github.event.client_payload.environment }}
           SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
         run: |
           if git diff --quiet; then
@@ -127,6 +143,6 @@ jobs:
           fi
           git config user.name "jjinbbang-gitops[bot]"
           git config user.email "jjinbbang-gitops[bot]@users.noreply.github.com"
-          git add apps/jjinbbang-admin/kustomization.yaml
-          git commit -m "🔧 Chore: 관리자 API 이미지 ${SOURCE_SHA} 반영"
+          git add "apps/jjinbbang-admin/overlays/${DEPLOY_ENVIRONMENT}/kustomization.yaml"
+          git commit -m "🔧 Chore: 관리자 API ${DEPLOY_ENVIRONMENT} 이미지 ${SOURCE_SHA} 반영"
           git push origin HEAD:main

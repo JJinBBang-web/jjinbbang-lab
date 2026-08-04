@@ -15,7 +15,9 @@ platform/applications/apps
 
 - app repo는 image를 빌드해 GHCR에 push한다.
 - 이 repo는 image tag와 Kubernetes desired state만 기록한다.
-- dev는 Argo CD auto sync, prod는 수동 승인 sync를 기본값으로 둔다.
+- 일반 app은 dev Argo CD auto sync, prod 수동 승인 sync를 기본값으로 둔다.
+- 관리자 API는 server `main` 반영을 승인 경계로 삼고, 검증된 dispatch 이후
+  prod Argo CD auto sync를 사용한다.
 - secret 원문은 넣지 않고 SealedSecret 또는 live Secret 계약으로 분리한다.
 
 Current app scaffold:
@@ -29,11 +31,15 @@ Current app scaffold:
 
 Admin API:
 
-- `apps/jjinbbang-admin`은 관리자 Spring 서버를 `admin.jjinbbang.kr`의
-  `/api`, `/oauth2`, `/login` 경로로 노출한다.
+- `apps/jjinbbang-admin/base`는 관리자 Spring 서버 공통 리소스를 정의한다.
+- `apps/jjinbbang-admin/overlays/dev`는 `jjinbbang-admin-dev` namespace와
+  `admin-dev.jjinbbang.kr`을 사용한다.
+- `apps/jjinbbang-admin/overlays/prod`는 `jjinbbang-admin` namespace와
+  `admin.jjinbbang.kr`을 사용한다.
 - 관리자 프론트엔드 Deployment와 루트 경로는 프론트 담당 범위이므로 포함하지 않는다.
-- 서버 두 replica는 MySQL-backed Spring Session을 공유한다.
-- `jjinbbang-admin-secrets`와 MySQL, DNS, 실제 서버 GHCR SHA image가 준비된 뒤
-  `platform/applications/apps/jjinbbang-admin.yaml`을 한 번 적용한다.
-- 이후 image SHA 갱신은 repository dispatch와 Argo CD auto sync로 진행하며
-  prune은 자동 실행하지 않는다.
+- 각 환경의 서버 replica는 해당 환경의 MySQL-backed Spring Session을 사용한다.
+- dev와 prod는 Authentik client/redirect URI, Secret, DB/schema를 분리한다.
+- `platform/applications/apps/jjinbbang-admin-dev.yaml`과
+  `platform/applications/apps/jjinbbang-admin.yaml`이 각각의 overlay를 가리킨다.
+- repository dispatch payload의 `environment`가 `dev` 또는 `prod`일 때 해당
+  overlay의 GHCR digest만 갱신하며, Argo CD는 prune 없이 동기화한다.

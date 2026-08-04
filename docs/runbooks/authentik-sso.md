@@ -23,13 +23,13 @@ Secret 생성 예시는 `platform/secrets/README.md`를 따른다. 값은 터미
 
 ```bash
 kubectl apply -k platform/authentik/bootstrap
-kubectl -n authentik wait --for=condition=complete job/authentik-apply-blueprints --timeout=300s
+kubectl -n authentik wait --for=condition=complete job/authentik-apply-blueprints-v2 --timeout=300s
 ```
 
 Job을 다시 실행해야 하면 기존 Job을 먼저 지운다.
 
 ```bash
-kubectl -n authentik delete job authentik-apply-blueprints
+kubectl -n authentik delete job authentik-apply-blueprints-v2
 kubectl apply -k platform/authentik/bootstrap
 ```
 
@@ -124,6 +124,20 @@ jjinbbang-observers -> role:readonly
 client secret은 `authentik-sso-bootstrap`의 `ADMIN_OIDC_CLIENT_SECRET`과 관리자
 서버 Secret의 `AUTHENTIK_CLIENT_SECRET`에 같은 값으로 넣는다. 앱 자체
 회원가입은 제공하지 않는다.
+
+개발 환경은 별도 Provider와 그룹을 사용한다.
+
+| 항목 | 값 |
+| --- | --- |
+| Name / slug | `jjinbbang-admin-dev` |
+| Client type | Confidential |
+| Redirect URI | `https://admin-dev.jjinbbang.kr/login/oauth2/code/authentik` |
+| Post logout URI | `https://admin-dev.jjinbbang.kr/login?logout` |
+| Issuer | `https://auth.jjinbbang.kr/application/o/jjinbbang-admin-dev/` |
+| Group | `jjinbbang-backoffice-admins-dev` |
+
+개발 client secret은 `ADMIN_OIDC_DEV_CLIENT_SECRET`과 dev namespace의
+`AUTHENTIK_CLIENT_SECRET`에 같은 값으로 넣는다.
 
 ## 5. n8n Proxy Provider
 

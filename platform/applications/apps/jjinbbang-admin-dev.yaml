@@ -1,21 +1,21 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: jjinbbang-admin
+  name: jjinbbang-admin-dev
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "50"
+    argocd.argoproj.io/sync-wave: "45"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   destination:
-    namespace: jjinbbang-admin
+    namespace: jjinbbang-admin-dev
     server: https://kubernetes.default.svc
   source:
     repoURL: https://github.com/JJinBBang-web/jjinbbang-lab.git
     targetRevision: main
-    path: apps/jjinbbang-admin/overlays/prod
+    path: apps/jjinbbang-admin/overlays/dev
   syncPolicy:
     automated:
       prune: false

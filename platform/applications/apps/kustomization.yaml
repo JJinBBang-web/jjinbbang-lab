@@ -3,4 +3,5 @@ kind: Kustomization
 resources:
   - jjinbbang-api-dev.yaml
   - jjinbbang-api-prod.yaml
+  - jjinbbang-admin-dev.yaml
   - jjinbbang-admin.yaml

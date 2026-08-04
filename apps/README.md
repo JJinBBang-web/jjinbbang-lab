@@ -15,7 +15,8 @@ platform/applications/apps
 
 - app repo는 image를 빌드해 GHCR에 push한다.
 - 이 repo는 image tag와 Kubernetes desired state만 기록한다.
-- dev는 Argo CD auto sync, prod는 수동 승인 sync를 기본값으로 둔다.
+- dev와 prod 모두 Argo CD auto sync를 사용한다. prod 승격은
+  `main` 반영과 server PR 검토·merge를 승인 경계로 둔다.
 - secret 원문은 넣지 않고 SealedSecret 또는 live Secret 계약으로 분리한다.
 
 Current app scaffold:

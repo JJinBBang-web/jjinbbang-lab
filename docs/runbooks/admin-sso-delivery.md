@@ -1,6 +1,13 @@
 # Admin API SSO and Delivery Runbook
 
-찐빵 관리자 API는 `admin.jjinbbang.kr`의 인증·API 경로로 노출한다.
+찐빵 관리자 API는 dev/prod 환경으로 분리한다.
+
+| 환경 | 서버 브랜치 | Host | Namespace | Authentik Provider |
+| --- | --- | --- | --- | --- |
+| dev | `develop` | `admin-dev.jjinbbang.kr` | `jjinbbang-admin-dev` | `jjinbbang-admin-dev` |
+| prod | `main` | `admin.jjinbbang.kr` | `jjinbbang-admin` | `jjinbbang-admin` |
+
+각 환경은 별도 DB/schema, Secret, OIDC client/redirect URI를 사용한다.
 브라우저에는 HttpOnly 세션 쿠키만 남기고 OIDC 토큰은 관리자 서버가 보관한다.
 관리자 프론트엔드 Deployment와 루트 경로는 이 저장소의 이번 작업 범위에
 포함하지 않는다.
@@ -32,19 +39,23 @@
 첫 운영자 `ryuwon`은 bootstrap blueprint에서 앱 전용 그룹에 포함한다. 다른
 운영자는 Authentik에서 이 그룹에 명시적으로 추가한다.
 
-## Main 배포 흐름
+## 배포 흐름
 
 ```text
-jjinbbang-server main
+jjinbbang-server develop/main
 -> test/build
 -> GHCR에 전체 Git SHA 태그와 digest로 이미지 게시
 -> GitHub App으로 jjinbbang-lab repository_dispatch
--> 발신 App, server main SHA, image digest 검증
--> apps/jjinbbang-admin/kustomization.yaml 서버 image digest 갱신
+-> 발신 App, source branch, 환경, image digest 검증
+-> 해당 환경 overlay의 서버 image digest 갱신
 -> manifest 전체 검증
 -> jjinbbang-lab main 자동 커밋
 -> Argo CD self-heal sync (prune=false)
 ```
+
+`develop`은 `dev` overlay만 갱신하고 `main`은 `prod` overlay만 갱신한다.
+GitOps 저장소의 desired state는 `main`에서 관리하지만, 운영 이미지로
+승격되는 것은 `main` dispatch뿐이다.
 
 두 저장소에 다음 Actions Secret을 설정한다.
 
@@ -54,7 +65,7 @@ GITOPS_APP_PRIVATE_KEY
 ```
 
 GitHub App은 `jjinbbang-lab`에만 설치하고 Contents read/write 권한을 가진다.
-server `main` HEAD는 공개 GitHub API로 읽어 App token의 쓰기 범위를 lab 밖으로
+server source branch HEAD는 공개 GitHub API로 읽어 App token의 쓰기 범위를 lab 밖으로
 넓히지 않는다. 개인 PAT는 사용하지 않는다. 각 앱 이미지 게시에는 저장소 기본
 `GITHUB_TOKEN`의 Packages write 권한을 쓴다.
 
@@ -67,7 +78,7 @@ GITOPS_DISPATCH_SENDER=jjinbbang-gitops[bot]
 
 실제 App slug가 다르면 GitHub audit log 또는 최초 거부된 workflow의
 `unexpected dispatch sender` 값으로 확인해 variable만 맞춘다. 수신 workflow는
-발신자, source repository, server `main` HEAD, image digest가 모두 일치해야만
+발신자, source repository, source branch HEAD, image digest가 모두 일치해야만
 desired state를 변경한다. GHCR package가 private이면 package 설정의 Actions
 access에 `JJinBBang-web/jjinbbang-lab`을 Read로 추가한다. 수신 workflow의
 `GITHUB_TOKEN`은 Packages read 외 권한을 사용하지 않고, `image:SHA`가 가리키는
@@ -80,33 +91,34 @@ access에 `JJinBBang-web/jjinbbang-lab`을 Read로 추가한다. 수신 workflow
 
 ## 최초 활성화 전 게이트
 
-아래 조건을 모두 충족하기 전에는 `jjinbbang-admin` Argo CD Application을
-적용하지 않는다.
+아래 조건을 모두 충족하기 전에는 관리자 API Argo CD Application을 적용하지
+않는다.
 
-1. `admin.jjinbbang.kr`가 worker edge를 가리킨다.
-2. 빈 MySQL database와 전용 사용자가 준비되어 있다.
-3. `jjinbbang-admin/jjinbbang-admin-secrets`가 존재하며 `DB_*`,
+1. `admin-dev.jjinbbang.kr`와 `admin.jjinbbang.kr`이 worker edge를 가리킨다.
+2. dev/prod용 빈 MySQL database/schema와 전용 사용자가 준비되어 있다.
+3. 두 namespace의 `jjinbbang-admin-secrets`가 각각 `DB_*`,
    `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET` 키를 가진다.
-4. Authentik bootstrap Secret에 같은 `ADMIN_OIDC_CLIENT_SECRET`이 들어 있고
-   blueprint Job 재적용이 성공했다.
+4. Authentik bootstrap Secret에 `ADMIN_OIDC_CLIENT_SECRET`과
+   `ADMIN_OIDC_DEV_CLIENT_SECRET`이 들어 있고 blueprint Job 재적용이 성공했다.
 5. 서버 GHCR image가 실제 SHA 태그로 존재하며 클러스터에서 pull 가능하다.
-6. `apps/jjinbbang-admin/kustomization.yaml`의 `bootstrap` 태그가 실제
-   `sha256` image digest로 교체되어 있다.
+6. dev/prod overlay의 image가 실제 `sha256` digest를 가리킨다.
 
 준비 후 Authentik blueprint를 다시 적용한다.
 
 ```bash
-kubectl -n authentik delete job authentik-apply-blueprints --ignore-not-found
+kubectl -n authentik delete job authentik-apply-blueprints-v2 --ignore-not-found
 kubectl apply -k platform/authentik/bootstrap
 kubectl -n authentik wait --for=condition=complete \
-  job/authentik-apply-blueprints --timeout=300s
+  job/authentik-apply-blueprints-v2 --timeout=300s
 ```
 
-그 다음 앱 Application을 한 번 활성화한다.
+그 다음 dev/prod Application을 활성화한다.
 
 ```bash
+kubectl apply -f platform/applications/apps/jjinbbang-admin-dev.yaml
 kubectl apply -f platform/applications/apps/jjinbbang-admin.yaml
-kubectl -n argocd get application jjinbbang-admin
+kubectl -n argocd get application jjinbbang-admin-dev jjinbbang-admin
+kubectl -n jjinbbang-admin-dev rollout status deployment/jjinbbang-admin-server --timeout=300s
 kubectl -n jjinbbang-admin rollout status deployment/jjinbbang-admin-server --timeout=300s
 ```
 
@@ -114,7 +126,11 @@ kubectl -n jjinbbang-admin rollout status deployment/jjinbbang-admin-server --ti
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
+  https://admin-dev.jjinbbang.kr/api/admin/auth/me
+curl -sS -o /dev/null -w '%{http_code}\n' \
   https://admin.jjinbbang.kr/api/admin/auth/me
+curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' \
+  https://admin-dev.jjinbbang.kr/oauth2/authorization/authentik
 curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' \
   https://admin.jjinbbang.kr/oauth2/authorization/authentik
 ```

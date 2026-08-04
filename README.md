@@ -61,6 +61,7 @@ Canonical hostnames:
 auth.jjinbbang.kr
 argo.jjinbbang.kr
 n8n.jjinbbang.kr
+admin-dev.jjinbbang.kr
 admin.jjinbbang.kr
 ```
 
@@ -87,7 +88,8 @@ flowchart TB
   Apps -.-> AppApps["platform/applications/apps<br/>optional"]
   AppApps -.-> ApiDev["jjinbbang-api-dev<br/>future"]
   AppApps -.-> ApiProd["jjinbbang-api-prod<br/>cutover gated"]
-  AppApps -.-> Admin["jjinbbang-admin<br/>secret·DB·DNS 준비 후 활성화"]
+  AppApps -.-> AdminDev["jjinbbang-admin-dev<br/>dev overlay"]
+  AppApps -.-> AdminProd["jjinbbang-admin<br/>prod overlay·게이트"]
 
   SSO["platform/argocd/sso<br/>guarded overlay<br/>preflight 이후 수동 적용"] -.-> ArgoSSO["argocd-cm / argocd-rbac-cm"]
 ```
@@ -133,13 +135,14 @@ SSO 기준:
 - `jjinbbang-admins`: Argo CD admin, n8n 접근 권한 기준 group.
 - `jjinbbang-observers`: Argo CD readonly group.
 - `jjinbbang-backoffice-admins`: 찐빵 관리자 API 접근 group.
+- `jjinbbang-backoffice-admins-dev`: 관리자 API 개발 환경 접근 group.
 
 ## 저장소 구조
 
 | 경로 | 역할 |
 | --- | --- |
 | `.github/workflows/validate.yml` | manifest 검증 CI |
-| `.github/workflows/update-admin-image.yml` | 관리자 서버 main 이미지 digest를 검증해 GitOps desired state에 반영 |
+| `.github/workflows/update-admin-image.yml` | 관리자 서버 dev/prod 이미지 digest를 검증해 해당 GitOps overlay에 반영 |
 | `platform/bootstrap` | 최초 root Argo CD Application |
 | `platform/applications` | Argo CD가 관리할 platform Application 목록 |
 | `platform/argocd` | Argo CD public ingress와 SSO 전환용 설정 |
@@ -147,11 +150,11 @@ SSO 기준:
 | `platform/cert-manager` | Let's Encrypt issuer |
 | `platform/traefik` | k3s packaged Traefik edge 설정 |
 | `platform/workloads/n8n` | n8n workload와 Authentik forward-auth 설정 |
-| `apps` | 찐빵 서비스 앱 manifest를 추가할 위치 |
+| `apps` | 찐빵 서비스 앱 manifest와 dev/prod overlay를 두는 위치 |
 | `platform/secrets` | repo에 넣지 않는 live Secret 계약 문서 |
 | `docs/runbooks` | bootstrap, DNS, SSO 운영 절차 |
 
-관리자 API의 SSO, Secret, 최초 활성화와 자동 배포 절차는
+관리자 API의 SSO, 환경별 Secret, 최초 활성화와 자동 배포 절차는
 `docs/runbooks/admin-sso-delivery.md`를 따른다.
 
 ## Bootstrap 절차

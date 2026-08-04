@@ -320,7 +320,7 @@ Bootstrap Job이 완료됐는지 확인한다.
 
 ```bash
 ssh -i "$JJINBBANG_LAB_SSH_KEY" ubuntu@"$CORE_PUBLIC_IP" \
-  'sudo k3s kubectl -n authentik wait --for=condition=complete job/authentik-apply-blueprints --timeout=300s'
+  'sudo k3s kubectl -n authentik wait --for=condition=complete job/authentik-apply-blueprints-v2 --timeout=300s'
 ```
 
 확인:

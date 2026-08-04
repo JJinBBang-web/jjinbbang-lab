@@ -29,7 +29,8 @@ Authentik runtime Secret 안에 `AUTHENTIK_POSTGRESQL__*` 환경 변수를 함�
 
 `platform/authentik/bootstrap`은 `/blueprints/system/bootstrap.yaml`과
 `jjinbbang-sso.yaml`을 적용한다. Secret 값은 화면에 출력하지 말고 env-file로
-생성한다.
+생성한다. 운영·개발 관리자 Provider는 각각 `ADMIN_OIDC_CLIENT_SECRET`과
+`ADMIN_OIDC_DEV_CLIENT_SECRET`를 사용한다.
 
 ```bash
 tmpdir="$(mktemp -d)"
@@ -45,6 +46,7 @@ admin_oidc_secret="$(openssl rand -base64 48)"
 cat >"$tmpdir/authentik-sso-bootstrap.env" <<EOF
 ARGOCD_OIDC_CLIENT_SECRET=$argocd_secret
 ADMIN_OIDC_CLIENT_SECRET=$admin_oidc_secret
+ADMIN_OIDC_DEV_CLIENT_SECRET=$(openssl rand -base64 48)
 N8N_PROXY_CLIENT_SECRET=$(openssl rand -base64 48)
 N8N_PROXY_COOKIE_SECRET=$(openssl rand -hex 32)
 EOF
@@ -158,11 +160,20 @@ running application actually reads; keep raw values out of Git.
 
 ## Jjinbbang Admin
 
-관리자 API는 MySQL과 Authentik OIDC 비밀값을 같은 live Secret에서 읽는다.
-`DB_URL`은 Flyway가 접속할 빈 스키마를 가리켜야 하며, Hibernate가 테이블을
-생성하도록 두지 않는다.
+관리자 API는 환경별 MySQL과 Authentik OIDC 비밀값을 namespace별 live Secret에서
+읽는다. `DB_URL`은 각 환경의 Flyway가 접속할 빈 스키마를 가리켜야 하며,
+Hibernate가 테이블을 생성하도록 두지 않는다.
 
 ```bash
+kubectl create namespace jjinbbang-admin-dev --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n jjinbbang-admin-dev create secret generic jjinbbang-admin-secrets \
+  --from-literal=DB_URL='jdbc:mysql://<mysql-host>:3306/<dev-database>?serverTimezone=UTC' \
+  --from-literal=DB_USERNAME='<dev-value>' \
+  --from-literal=DB_PASSWORD='<dev-value>' \
+  --from-literal=AUTHENTIK_CLIENT_ID='jjinbbang-admin-dev' \
+  --from-literal=AUTHENTIK_CLIENT_SECRET='<same ADMIN_OIDC_DEV_CLIENT_SECRET value>' \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 kubectl create namespace jjinbbang-admin --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n jjinbbang-admin create secret generic jjinbbang-admin-secrets \
   --from-literal=DB_URL='jdbc:mysql://<mysql-host>:3306/<database>?serverTimezone=UTC' \

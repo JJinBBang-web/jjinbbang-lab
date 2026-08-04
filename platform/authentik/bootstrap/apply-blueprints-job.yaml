@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: authentik-apply-blueprints
+  name: authentik-apply-blueprints-v2
   namespace: authentik
   annotations:
     argocd.argoproj.io/sync-wave: "35"

@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jjinbbang-redis
+  labels:
+    app.kubernetes.io/name: jjinbbang-redis
+    app.kubernetes.io/instance: jjinbbang-redis
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: jjinbbang-redis
+    app.kubernetes.io/instance: jjinbbang-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: jjinbbang-redis
+  labels:
+    app.kubernetes.io/name: jjinbbang-redis
+    app.kubernetes.io/instance: jjinbbang-redis
+spec:
+  serviceName: jjinbbang-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jjinbbang-redis
+      app.kubernetes.io/instance: jjinbbang-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jjinbbang-redis
+        app.kubernetes.io/instance: jjinbbang-redis
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.jjinbbang.dev/core
+                    operator: DoesNotExist
+      containers:
+        - name: redis
+          image: redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              umask 077
+              printf 'appendonly yes\nrequirepass %s\n' "$REDIS_PASSWORD" > /run/redis/redis.conf
+              exec redis-server /run/redis/redis.conf
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jjinbbang-api-secrets
+                  key: REDIS_PASSWORD
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "export REDISCLI_AUTH=\"$REDIS_PASSWORD\"; redis-cli ping"]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "export REDISCLI_AUTH=\"$REDIS_PASSWORD\"; redis-cli ping"]
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+            - name: redis-runtime
+              mountPath: /run/redis
+      volumes:
+        - name: redis-runtime
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi

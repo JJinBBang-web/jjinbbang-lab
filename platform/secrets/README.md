@@ -127,9 +127,18 @@ kubectl -n n8n get secret n8n-owner-bootstrap \
 
 ## Jjinbbang API
 
-`apps/jjinbbang-api` overlays는 각 namespace에 같은 이름의 live Secret을
-기대한다. namespace를 먼저 만든 뒤 Secret을 적용해야 Argo CD가 Deployment를
-시작할 때 `envFrom.secretRef`가 준비된다.
+`apps/jjinbbang-api`의 dev, prod, legacy overlay는 환경별 namespace에 아래 live
+Secret을 기대한다.
+
+| Secret | 내용 |
+| --- | --- |
+| `jjinbbang-api-secrets` | 환경 변수와 Redis 비밀번호 |
+| `jjinbbang-api-runtime` | profile 파일과 `security-path.yml` |
+| `jjinbbang-api-google` | `gcp_iam_key.json` |
+| `ghcr-pull` | private GHCR Pull 인증 |
+
+이미지에는 위 파일을 포함하지 않는다. namespace와 Secret을 먼저 만든 뒤 Argo CD
+Application을 동기화한다.
 
 ```bash
 kubectl create namespace jjinbbang-dev --dry-run=client -o yaml | kubectl apply -f -
@@ -140,6 +149,7 @@ kubectl -n jjinbbang-dev create secret generic jjinbbang-api-secrets \
   --from-literal=SPRING_DATA_MONGODB_URI='<value>' \
   --from-literal=REDIS_HOST='<value>' \
   --from-literal=REDIS_PORT='6379' \
+  --from-literal=REDIS_PASSWORD='<value>' \
   --from-literal=JWT_SECRET='<value>' \
   --dry-run=client -o yaml | kubectl apply -f -
 
@@ -151,12 +161,73 @@ kubectl -n jjinbbang-prod create secret generic jjinbbang-api-secrets \
   --from-literal=SPRING_DATA_MONGODB_URI='<value>' \
   --from-literal=REDIS_HOST='<value>' \
   --from-literal=REDIS_PORT='6379' \
+  --from-literal=REDIS_PASSWORD='<value>' \
   --from-literal=JWT_SECRET='<value>' \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-OAuth provider, mail, and OpenAI keys are app-dependent. Add only the keys the
-running application actually reads; keep raw values out of Git.
+legacy에도 같은 Secret 이름을 사용하되 값과 Redis PVC는 dev/prod와 공유하지 않는다.
+레거시 profile은 OCI MySQL, OCI Object Storage 호환 endpoint, MongoDB Atlas와
+`jjinbbang-redis`를 가리켜야 한다.
+
+Deployment는 `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`를 Spring의
+`SPRING_DATA_REDIS_*` 속성으로 명시 매핑한다. 외부 `application-prod.yml`에
+`localhost` 값이 남아 있어도 이 Secret 값이 우선한다.
+
+OCI S3 호환 endpoint의 namespace와 Customer Secret Key의 tenancy는 반드시
+같아야 한다. 업로드 버킷도 그 namespace 안에 존재해야 하며, 애플리케이션이
+반환하는 CDN base URL은 같은 버킷의 public object URL을 사용한다. 다른 tenancy의
+동명 버킷이나 public mirror를 가리키면 presigned URL 생성은 성공해도 PUT은
+`NoSuchBucket`으로 실패한다.
+
+```bash
+kubectl create namespace jjinbbang-legacy --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n jjinbbang-legacy create secret generic jjinbbang-api-secrets \
+  --from-literal=REDIS_HOST='jjinbbang-redis' \
+  --from-literal=REDIS_PORT='6379' \
+  --from-literal=REDIS_PASSWORD='<legacy-value>' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+파일 Secret은 승인된 로컬 비밀 저장소에서 읽어 생성한다. 실제 경로와 값은
+저장소에 기록하지 않는다.
+
+```bash
+kubectl -n <namespace> create secret generic jjinbbang-api-runtime \
+  --from-file=application-prod.yml=<secure-application-prod.yml> \
+  --from-file=application-dev.yml=<secure-application-dev.yml> \
+  --from-file=security-path.yml=<secure-security-path.yml> \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n <namespace> create secret generic jjinbbang-api-google \
+  --from-file=gcp_iam_key.json=<secure-gcp-key.json> \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Private GHCR Pull에는 패키지 읽기 전용 PAT classic을 사용한다. 개인 개발용 토큰이나
+repo 쓰기 권한 토큰을 클러스터에 넣지 않는다.
+
+```bash
+kubectl -n <namespace> create secret docker-registry ghcr-pull \
+  --docker-server=ghcr.io \
+  --docker-username='<package-reader>' \
+  --docker-password='<read-packages-token>' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+GitOps 자동 갱신에는 `JJinBBang_BE`와 `jjinbbang-lab` Actions Secret에 동일한
+GitHub App 자격 증명을 등록한다.
+
+```text
+GITOPS_APP_ID
+GITOPS_APP_PRIVATE_KEY
+```
+
+App은 `jjinbbang-lab`에만 설치하고 Contents read/write로 제한한다. lab Actions
+variable `GITOPS_DISPATCH_SENDER`에는 App bot login을 등록한다. GHCR package의
+Actions access에는 `jjinbbang-lab`을 Read로 추가한다.
+
+OAuth provider, mail, OpenAI 키는 애플리케이션이 실제 읽는 항목만 환경별 Secret에
+추가한다. 원문 값은 Git에 기록하지 않는다.
 
 ## Jjinbbang Admin
 

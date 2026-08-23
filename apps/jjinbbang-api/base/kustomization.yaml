@@ -3,5 +3,6 @@ kind: Kustomization
 resources:
   - configmap.yaml
   - deployment.yaml
+  - redis.yaml
   - service.yaml
   - ingress.yaml

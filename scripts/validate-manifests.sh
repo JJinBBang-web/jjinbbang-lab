@@ -53,6 +53,9 @@ kubectl kustomize apps/jjinbbang-api/overlays/dev >/tmp/jjinbbang-lab-jjinbbang-
 echo "== kubectl kustomize jjinbbang-api prod =="
 kubectl kustomize apps/jjinbbang-api/overlays/prod >/tmp/jjinbbang-lab-jjinbbang-api-prod.yaml
 
+echo "== kubectl kustomize jjinbbang-api legacy =="
+kubectl kustomize apps/jjinbbang-api/overlays/legacy >/tmp/jjinbbang-lab-jjinbbang-api-legacy.yaml
+
 echo "== kubectl kustomize jjinbbang-admin dev =="
 kubectl kustomize apps/jjinbbang-admin/overlays/dev >/tmp/jjinbbang-lab-jjinbbang-admin-dev.yaml
 

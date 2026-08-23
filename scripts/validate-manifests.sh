@@ -56,6 +56,18 @@ kubectl kustomize apps/jjinbbang-api/overlays/prod >/tmp/jjinbbang-lab-jjinbbang
 echo "== kubectl kustomize jjinbbang-api legacy =="
 kubectl kustomize apps/jjinbbang-api/overlays/legacy >/tmp/jjinbbang-lab-jjinbbang-api-legacy.yaml
 
+echo "== jjinbbang-api runtime contract =="
+ruby -ryaml -e '
+  manifests = YAML.load_stream(File.read(ARGV.fetch(0)))
+  deployment = manifests.find { |doc| doc.is_a?(Hash) && doc["kind"] == "Deployment" && doc.dig("metadata", "name") == "jjinbbang-api" }
+  path = deployment&.dig("spec", "template", "spec", "containers", 0, "startupProbe", "httpGet", "path")
+  automount = deployment&.dig("spec", "template", "spec", "automountServiceAccountToken")
+  seccomp = deployment&.dig("spec", "template", "spec", "securityContext", "seccompProfile", "type")
+  abort "startup probe must use /actuator/health/liveness, got #{path.inspect}" unless path == "/actuator/health/liveness"
+  abort "service account token automount must be false, got #{automount.inspect}" unless automount == false
+  abort "pod seccomp profile must be RuntimeDefault, got #{seccomp.inspect}" unless seccomp == "RuntimeDefault"
+' /tmp/jjinbbang-lab-jjinbbang-api-legacy.yaml
+
 echo "== kubectl kustomize jjinbbang-admin dev =="
 kubectl kustomize apps/jjinbbang-admin/overlays/dev >/tmp/jjinbbang-lab-jjinbbang-admin-dev.yaml
 

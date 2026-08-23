@@ -7,6 +7,9 @@ metadata:
     app.kubernetes.io/instance: jjinbbang-api
 data:
   SPRING_PROFILES_ACTIVE: default
+  SPRING_CONFIG_ADDITIONAL_LOCATION: optional:file:/etc/jjinbbang/config/
+  SECURITY_PATH_CONFIG: file:/etc/jjinbbang/config/security-path.yml
+  GOOGLE_CREDENTIALS_PATH: file:/etc/jjinbbang/gcp/gcp_iam_key.json
   SERVER_FORWARD_HEADERS_STRATEGY: framework
   MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info
   MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"

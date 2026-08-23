@@ -22,6 +22,14 @@ spec:
         app.kubernetes.io/name: jjinbbang-api
         app.kubernetes.io/instance: jjinbbang-api
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -41,6 +49,22 @@ spec:
                 name: jjinbbang-api-config
             - secretRef:
                 name: jjinbbang-api-secrets
+          env:
+            - name: SPRING_DATA_REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: jjinbbang-api-secrets
+                  key: REDIS_HOST
+            - name: SPRING_DATA_REDIS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: jjinbbang-api-secrets
+                  key: REDIS_PORT
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jjinbbang-api-secrets
+                  key: REDIS_PASSWORD
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
@@ -76,3 +100,19 @@ spec:
             capabilities:
               drop:
                 - ALL
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /etc/jjinbbang/config
+              readOnly: true
+            - name: google-credentials
+              mountPath: /etc/jjinbbang/gcp
+              readOnly: true
+      volumes:
+        - name: runtime-config
+          secret:
+            secretName: jjinbbang-api-runtime
+            defaultMode: 0440
+        - name: google-credentials
+          secret:
+            secretName: jjinbbang-api-google
+            defaultMode: 0440

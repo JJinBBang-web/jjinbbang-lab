@@ -6,7 +6,8 @@
 
 | Repo | 역할 |
 | --- | --- |
-| `jjinbbang-server` | 통합 Spring Boot 코드, 테스트, 이미지 빌드 |
+| `JJinBBang_BE` | 현재 운영 중인 레거시 Spring Boot 코드와 `jjinbbang-api` 이미지 빌드 |
+| `jjinbbang-server` | 리팩터링 중인 통합 Spring Boot 코드와 `jjinbbang-server` 이미지 빌드 |
 | `jjinbbang-lab` | Kubernetes manifest, Argo CD Application, 배포 환경 값 |
 
 앱 코드 repo에서 Kubernetes resource를 직접 적용하지 않는다.
@@ -14,36 +15,39 @@
 ## 2. Image 흐름
 
 ```text
-jjinbbang-server pull request
--> GitHub Actions test
--> image build
--> ghcr.io/jjinbbang-web/jjinbbang-server:<git-sha>
--> jjinbbang-lab apps/jjinbbang-api/overlays/dev image tag update
+JJinBBang_BE develop/release
+-> GitHub Actions ARM64 image build
+-> private ghcr.io/jjinbbang-web/jjinbbang-api:<git-sha>
+-> GitHub App repository_dispatch
+-> jjinbbang-lab environment overlay digest update
 -> Argo CD sync
 ```
 
 이 repo 자체는 `.github/workflows/validate.yml`에서 YAML parse, shell syntax,
-Kustomize build를 검증한다. 실제 앱 이미지 빌드/스캔 workflow는
-`jjinbbang-server` repo에 둔다.
+Kustomize build를 검증한다. 실제 이미지는 각 애플리케이션 repo에서 빌드한다.
 
 ## 3. 필요한 GitHub 설정
 
-`jjinbbang-server` repo:
+`JJinBBang_BE` workflow:
 
 ```text
 packages: write
 contents: read
 ```
 
-`jjinbbang-lab` repo를 자동 업데이트하려면 fine-grained token 또는 GitHub App을
+이미지는 `linux/arm64`만 발행하고 package visibility가 `private`인지 발행 전후에
+검증한다. 운영 profile, GCP 키, security-path는 이미지에 포함하지 않는다.
+
+`jjinbbang-lab` 자동 갱신에는 Contents read/write 권한만 가진 GitHub App을
 사용한다.
 
 ```text
 contents: write
-pull-requests: write
 ```
 
-개인 PAT를 장기 운영 secret으로 쓰지 않는다.
+Private package 설정에서 `jjinbbang-lab` Actions access를 Read로 추가한다.
+클러스터 Pull용 자격 증명은 별도 PAT classic의 `read:packages`만 허용하고
+namespace별 `ghcr-pull` Secret으로 관리한다.
 
 ## 4. Manifest 구조
 
@@ -53,8 +57,10 @@ pull-requests: write
 apps/jjinbbang-api/base
 apps/jjinbbang-api/overlays/dev
 apps/jjinbbang-api/overlays/prod
+apps/jjinbbang-api/overlays/legacy
 platform/applications/apps/jjinbbang-api-dev.yaml
 platform/applications/apps/jjinbbang-api-prod.yaml
+platform/applications/apps/jjinbbang-api-legacy.yaml
 ```
 
 The app Applications are optional at this stage. They are intentionally not
@@ -79,6 +85,17 @@ prod:
 - DB migration과 백업 확인 후 승격
 - host `api.jjinbbang.kr`
 
+legacy:
+
+- AWS EC2 운영 서버와 동일한 `release` SHA 기준 이미지
+- `jjinbbang-legacy` 전용 DB, Redis PVC, Secret 사용
+- 외부 Ingress 없이 내부 smoke test만 수행
+- Cloudflare 전환 전까지 AWS 트래픽 유지
+- OCI Object Storage Customer Secret Key, S3 endpoint namespace, upload bucket이
+  같은 tenancy인지 presigned PUT으로 확인
+- RDS/OCI table count와 row checksum, MongoDB review ID와 image key, public object
+  HTTP 응답을 함께 비교
+
 ## 5. Secret 계약
 
 앱 Secret은 처음에는 live Secret로 만들고 Sealed Secrets 검증 후 이관한다.
@@ -92,6 +109,7 @@ SPRING_DATASOURCE_PASSWORD
 SPRING_DATA_MONGODB_URI
 REDIS_HOST
 REDIS_PORT
+REDIS_PASSWORD
 JWT_SECRET
 OPENAI_API_KEY
 GOOGLE_CLIENT_ID
@@ -102,6 +120,16 @@ NAVER_CLIENT_ID
 NAVER_CLIENT_SECRET
 MAIL_USERNAME
 MAIL_PASSWORD
+```
+
+파일 기반 Secret:
+
+```text
+jjinbbang-api-runtime/application-prod.yml
+jjinbbang-api-runtime/application-dev.yml
+jjinbbang-api-runtime/security-path.yml
+jjinbbang-api-google/gcp_iam_key.json
+ghcr-pull/.dockerconfigjson
 ```
 
 Create the namespace and live Secret before syncing the Application. The
@@ -131,8 +159,9 @@ Prerequisites:
 
 - DNS records exist for `api-dev.jjinbbang.kr` and `api.jjinbbang.kr`.
 - `jjinbbang-api-secrets` exists in `jjinbbang-dev` and `jjinbbang-prod`.
+- `jjinbbang-api-runtime`, `jjinbbang-api-google`, `ghcr-pull`이 대상 namespace에 존재한다.
 - The referenced image tags exist in GHCR.
-- The image package is public, or target namespaces have an image pull Secret if the package is private.
+- GHCR package는 private이며 target namespace의 `ghcr-pull`로 인증한다.
 
 `api.jjinbbang.kr` already resolves to the existing AWS load balancer. Do not
 point `api` at this lab cluster until a production API cutover is explicitly

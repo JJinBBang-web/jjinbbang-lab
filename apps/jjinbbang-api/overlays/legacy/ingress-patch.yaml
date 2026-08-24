@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jjinbbang-api
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns01-cloudflare
+spec:
+  tls:
+    - hosts:
+        - api.jjinbbang.kr
+      secretName: jjinbbang-api-legacy-tls
+  rules:
+    - host: api.jjinbbang.kr
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jjinbbang-api
+                port:
+                  number: 8080

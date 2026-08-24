@@ -89,7 +89,8 @@ legacy:
 
 - AWS EC2 운영 서버와 동일한 `release` SHA 기준 이미지
 - `jjinbbang-legacy` 전용 DB, Redis PVC, Secret 사용
-- 외부 Ingress 없이 내부 smoke test만 수행
+- `api.jjinbbang.kr` Ingress는 Cloudflare DNS-01 인증서와 함께 미리 준비
+- DNS는 AWS를 유지하고 OCI worker IP에 `curl --resolve`로 HTTPS smoke test 수행
 - Cloudflare 전환 전까지 AWS 트래픽 유지
 - OCI Object Storage Customer Secret Key, S3 endpoint namespace, upload bucket이
   같은 tenancy인지 presigned PUT으로 확인
@@ -157,7 +158,8 @@ kubectl -n jjinbbang-prod create secret generic jjinbbang-api-secrets \
 
 Prerequisites:
 
-- DNS records exist for `api-dev.jjinbbang.kr` and `api.jjinbbang.kr`.
+- DNS records exist for `api-dev.jjinbbang.kr` and `api.jjinbbang.kr`. legacy
+  사전 검증에서는 production DNS가 AWS를 계속 가리켜도 된다.
 - `jjinbbang-api-secrets` exists in `jjinbbang-dev` and `jjinbbang-prod`.
 - `jjinbbang-api-runtime`, `jjinbbang-api-google`, `ghcr-pull`이 대상 namespace에 존재한다.
 - The referenced image tags exist in GHCR.
@@ -166,6 +168,22 @@ Prerequisites:
 `api.jjinbbang.kr` already resolves to the existing AWS load balancer. Do not
 point `api` at this lab cluster until a production API cutover is explicitly
 approved.
+
+legacy 인증서 선발급에는 `cert-manager/cloudflare-api-token` Secret과
+`letsencrypt-dns01-cloudflare` ClusterIssuer가 필요하다. 인증서가 Ready가 되면
+DNS 변경 없이 worker edge를 직접 지정해 확인한다.
+
+legacy와 prod overlay는 모두 `api.jjinbbang.kr`을 사용하므로 두 Ingress를
+동시에 활성화하지 않는다. 현재 전환 준비 단계에서는 legacy Application만
+활성화한다. 리팩터링 prod로 승격할 때는 먼저 legacy Ingress를 비활성화하고,
+prod Ingress가 유일한 `api.jjinbbang.kr` 라우트인지 확인한 뒤 전환한다.
+
+```bash
+curl --resolve "api.jjinbbang.kr:443:$WORKER_1_PUBLIC_IP" \
+  https://api.jjinbbang.kr/actuator/health
+curl --resolve "api.jjinbbang.kr:443:$WORKER_2_PUBLIC_IP" \
+  https://api.jjinbbang.kr/actuator/health
+```
 
 Activation options:
 

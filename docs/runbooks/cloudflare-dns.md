@@ -160,6 +160,16 @@ $CORE_PUBLIC_IP:443    closed
 
 ## 4. TLS 발급 확인
 
+`api.jjinbbang.kr`의 AWS 레코드를 유지한 채 OCI 인증서를 선발급할 때는
+`letsencrypt-dns01-cloudflare` ClusterIssuer를 사용한다. 제한 API token은
+`jjinbbang.kr`의 `DNS 편집`과 `Zone 읽기`만 허용하고
+`cert-manager/cloudflare-api-token` Secret에 보관한다. 이 과정은 production
+DNS 레코드를 변경하지 않는다.
+
+legacy와 prod API Ingress는 같은 `api.jjinbbang.kr` host를 공유하므로 동시에
+활성화하지 않는다. DNS 전환 전에는 legacy만 활성화하고, 리팩터링 prod로
+교체할 때는 legacy Ingress 제거를 먼저 확인한다.
+
 cert-manager 적용 후:
 
 ```bash

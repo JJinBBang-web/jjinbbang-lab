@@ -10,4 +10,4 @@ images:
 patches:
   - path: configmap-patch.yaml
   - path: deployment-patch.yaml
-  - path: delete-ingress.yaml
+  - path: ingress-patch.yaml

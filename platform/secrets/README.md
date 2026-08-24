@@ -3,6 +3,24 @@
 원문 secret은 이 저장소에 커밋하지 않는다. 아래 Secret은 live cluster에
 수동으로 만들거나, Sealed Secrets 도입 후 `SealedSecret`으로 이관한다.
 
+## Cloudflare DNS-01 ACME
+
+`api.jjinbbang.kr`가 AWS를 가리키는 동안에도 OCI 인증서를 미리 발급하기 위해
+cert-manager는 Cloudflare DNS-01 전용 API token을 사용한다. token 권한은
+`jjinbbang.kr` zone의 `Zone / DNS / Edit`와 `Zone / Zone / Read`로 제한한다.
+
+token 원문은 1Password 찐빵 vault에 보관하고, 클러스터에는
+`cert-manager/cloudflare-api-token` Secret의 `api-token` 키로만 주입한다.
+
+```bash
+kubectl -n cert-manager create secret generic cloudflare-api-token \
+  --from-literal=api-token='<cloudflare-dns-api-token>' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Secret 적용 후 `letsencrypt-dns01-cloudflare` ClusterIssuer가 `Ready=True`인지
+확인한다. Secret 값이나 평문 manifest는 Git에 추가하지 않는다.
+
 ## Authentik
 
 ```bash

@@ -6,4 +6,4 @@ data:
   SPRING_PROFILES_ACTIVE: dev
   AUTHENTIK_ISSUER_URI: https://auth.jjinbbang.kr/application/o/jjinbbang-admin-dev/
   AUTHENTIK_ADMIN_GROUP: jjinbbang-backoffice-admins-dev
-  ADMIN_LOGIN_SUCCESS_URI: /api/admin/auth/me
+  ADMIN_LOGIN_SUCCESS_URI: /

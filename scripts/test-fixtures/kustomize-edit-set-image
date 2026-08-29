@@ -1,0 +1,20 @@
+#!/usr/bin/env ruby
+
+abort "expected: kustomize edit set image IMAGE=IMAGE@DIGEST" unless ARGV[0, 3] == ["edit", "set", "image"] && ARGV.length == 4
+
+image, pinned = ARGV.fetch(3).split("=", 2)
+new_name, digest = pinned.to_s.split("@", 2)
+abort "invalid set image expression" unless image == new_name && digest&.start_with?("sha256:")
+
+path = "kustomization.yaml"
+lines = File.readlines(path, chomp: false)
+start = lines.index { |line| line.chomp == "  - name: #{image}" }
+abort "image not found: #{image}" unless start
+
+finish = ((start + 1)...lines.length).find { |index| lines.fetch(index).start_with?("  - name: ") } || lines.length
+replacement = [
+  "  - name: #{image}\n",
+  "    newName: #{new_name}\n",
+  "    digest: #{digest}\n"
+]
+File.write(path, (lines[0...start] + replacement + lines[finish..]).join)

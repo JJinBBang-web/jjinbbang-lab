@@ -1,4 +1,4 @@
-name: Update admin API image
+name: Update admin web or API image
 
 on:
   repository_dispatch:
@@ -10,25 +10,16 @@ permissions:
   packages: read
 
 concurrency:
-  group: update-admin-api-image
+  group: update-admin-image
   cancel-in-progress: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
-        id: app-token
-        with:
-          app-id: ${{ secrets.GITOPS_APP_ID }}
-          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
-          owner: JJinBBang-web
-          repositories: jjinbbang-lab
-
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
-          token: ${{ steps.app-token.outputs.token }}
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -50,44 +41,14 @@ jobs:
           EVENT_SENDER: ${{ github.event.sender.login }}
           EXPECTED_SENDER: ${{ vars.GITOPS_DISPATCH_SENDER }}
           DEPLOY_ENVIRONMENT: ${{ github.event.client_payload.environment }}
+          VALIDATE_ONLY: "true"
         run: |
           set -euo pipefail
           if [[ -z "$EXPECTED_SENDER" || "$EVENT_SENDER" != "$EXPECTED_SENDER" ]]; then
             echo "unexpected dispatch sender: $EVENT_SENDER" >&2
             exit 1
           fi
-          if [[ "$COMPONENT" != "server" ]]; then
-            echo "unsupported component: $COMPONENT" >&2
-            exit 1
-          fi
-          if [[ "$DEPLOY_ENVIRONMENT" != "dev" && "$DEPLOY_ENVIRONMENT" != "prod" ]]; then
-            echo "unsupported deployment environment: $DEPLOY_ENVIRONMENT" >&2
-            exit 1
-          fi
-          EXPECTED_REF="develop"
-          if [[ "$DEPLOY_ENVIRONMENT" == "prod" ]]; then
-            EXPECTED_REF="main"
-          fi
-          if [[ "$SOURCE_REF" != "$EXPECTED_REF" ]]; then
-            echo "environment/source ref mismatch: $DEPLOY_ENVIRONMENT/$SOURCE_REF" >&2
-            exit 1
-          fi
-          if [[ "$IMAGE" != "ghcr.io/jjinbbang-web/jjinbbang-server" ]]; then
-            echo "unexpected image: $IMAGE" >&2
-            exit 1
-          fi
-          if [[ ! "$TAG" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "tag must be a full Git commit SHA" >&2
-            exit 1
-          fi
-          if [[ "$SOURCE_REPOSITORY" != "JJinBBang-web/jjinbbang-server" || "$SOURCE_SHA" != "$TAG" ]]; then
-            echo "unexpected source: $SOURCE_REPOSITORY@$SOURCE_SHA" >&2
-            exit 1
-          fi
-          if [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "invalid image digest" >&2
-            exit 1
-          fi
+          ./scripts/update-admin-image.sh
           SOURCE_BRANCH_SHA="$(
             curl --fail --silent --show-error \
               --header 'Accept: application/vnd.github+json' \
@@ -96,7 +57,7 @@ jobs:
               jq -r .sha
           )"
           if [[ "$SOURCE_BRANCH_SHA" != "$SOURCE_SHA" ]]; then
-            echo "source SHA is not the current server $SOURCE_REF HEAD" >&2
+            echo "source SHA is not the current $COMPONENT $SOURCE_REF HEAD" >&2
             exit 1
           fi
 
@@ -120,29 +81,31 @@ jobs:
 
       - name: Update immutable image digest
         env:
+          COMPONENT: ${{ github.event.client_payload.component }}
           IMAGE: ${{ github.event.client_payload.image }}
+          TAG: ${{ github.event.client_payload.tag }}
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.source_repository }}
+          SOURCE_REF: ${{ github.event.client_payload.source_ref }}
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
           IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
           DEPLOY_ENVIRONMENT: ${{ github.event.client_payload.environment }}
-        run: |
-          cd "apps/jjinbbang-admin/overlays/$DEPLOY_ENVIRONMENT"
-          kustomize edit set image "$IMAGE=$IMAGE@$IMAGE_DIGEST"
+        run: ./scripts/update-admin-image.sh
 
       - uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
 
       - name: Validate desired state
         run: ./scripts/validate-manifests.sh
 
-      - name: Commit desired state
-        env:
-          DEPLOY_ENVIRONMENT: ${{ github.event.client_payload.environment }}
-          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
-        run: |
-          if git diff --quiet; then
-            echo "image tag is already current"
-            exit 0
-          fi
-          git config user.name "jjinbbang-gitops[bot]"
-          git config user.email "jjinbbang-gitops[bot]@users.noreply.github.com"
-          git add "apps/jjinbbang-admin/overlays/${DEPLOY_ENVIRONMENT}/kustomization.yaml"
-          git commit -m "🔧 Chore: 관리자 API ${DEPLOY_ENVIRONMENT} 이미지 ${SOURCE_SHA} 반영"
-          git push origin HEAD:main
+      # Automatic commit/push to jjinbbang-lab/main is intentionally disabled.
+      # Enabling it requires separate user approval and a write-scoped checkout token.
+      # - name: Commit desired state
+      #   env:
+      #     COMPONENT: ${{ github.event.client_payload.component }}
+      #     DEPLOY_ENVIRONMENT: ${{ github.event.client_payload.environment }}
+      #     SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
+      #   run: |
+      #     git config user.name "jjinbbang-gitops[bot]"
+      #     git config user.email "jjinbbang-gitops[bot]@users.noreply.github.com"
+      #     git add "apps/jjinbbang-admin/overlays/${DEPLOY_ENVIRONMENT}/kustomization.yaml"
+      #     git commit -m "🔧 Chore: 관리자 ${COMPONENT} ${DEPLOY_ENVIRONMENT} 이미지 ${SOURCE_SHA} 반영"
+      #     git push origin HEAD:main

@@ -7,7 +7,10 @@ resources:
 images:
   - name: ghcr.io/jjinbbang-web/jjinbbang-server
     newTag: bootstrap
+  - name: ghcr.io/jjinbbang-web/jjinbbang-admin
+    newTag: bootstrap
 patches:
   - path: configmap-patch.yaml
   - path: deployment-patch.yaml
+  - path: web-deployment-patch.yaml
   - path: ingress-patch.yaml

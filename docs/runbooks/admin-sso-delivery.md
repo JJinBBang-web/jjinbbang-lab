@@ -1,22 +1,20 @@
-# Admin API SSO and Delivery Runbook
+# Admin SSO and Delivery Runbook
 
-찐빵 관리자 API는 dev/prod 환경으로 분리한다.
+찐빵 관리자 웹과 API는 dev/prod 환경으로 분리한다.
 
-| 환경 | 서버 브랜치 | Host | Namespace | Authentik Provider |
+| 환경 | 웹/API 브랜치 | Host | Namespace | Authentik Provider |
 | --- | --- | --- | --- | --- |
 | dev | `develop` | `admin-dev.jjinbbang.kr` | `jjinbbang-admin-dev` | `jjinbbang-admin-dev` |
 | prod | `main` | `admin.jjinbbang.kr` | `jjinbbang-admin` | `jjinbbang-admin` |
 
 각 환경은 별도 DB/schema, Secret, OIDC client/redirect URI를 사용한다.
 브라우저에는 HttpOnly 세션 쿠키만 남기고 OIDC 토큰은 관리자 서버가 보관한다.
-관리자 프론트엔드 Deployment와 루트 경로는 이 저장소의 이번 작업 범위에
-포함하지 않는다.
-
 ## 요청 경로
 
 | 경로 | 대상 |
 | --- | --- |
-| `/api`, `/oauth2`, `/login` | `jjinbbang-admin-server` |
+| `/api`, `/oauth2`, `/login/oauth2` | `jjinbbang-admin-server` |
+| `/`, `/login` | `jjinbbang-admin-web` |
 
 로그인 시작 경로는 `/oauth2/authorization/authentik`이다. Authentik 인증이
 끝나면 Spring Security가 `/login/oauth2/code/authentik`에서 callback을
@@ -42,32 +40,48 @@
 ## 배포 흐름
 
 ```text
-jjinbbang-server develop/main
+component별 source repository develop/main
 -> test/build
 -> GHCR에 전체 Git SHA 태그와 digest로 이미지 게시
 -> GitHub App으로 jjinbbang-lab repository_dispatch
--> 발신 App, source branch, 환경, image digest 검증
--> 해당 환경 overlay의 서버 image digest 갱신
+-> 발신 App, component별 source/image, source branch HEAD, 환경, image digest 검증
+-> 해당 환경 overlay의 선택한 component image digest 갱신
 -> manifest 전체 검증
--> jjinbbang-lab main 자동 커밋
--> Argo CD self-heal sync (prune=false)
+-> 사용자 승인 전까지 자동 commit/push 중지
 ```
 
 `develop`은 `dev` overlay만 갱신하고 `main`은 `prod` overlay만 갱신한다.
-GitOps 저장소의 desired state는 `main`에서 관리하지만, 운영 이미지로
-승격되는 것은 `main` dispatch뿐이다.
+component별 허용 payload는 다음과 같다. 태그는 source SHA와 같은 40자리 소문자
+hex이고 digest는 `sha256:` 뒤 64자리 소문자 hex여야 한다.
 
-두 저장소에 다음 Actions Secret을 설정한다.
+| component | source repository | GHCR image |
+| --- | --- | --- |
+| `web` | `JJinBBang-web/JJinBBang_Admin` | `ghcr.io/jjinbbang-web/jjinbbang-admin` |
+| `server` | `JJinBBang-web/jjinbbang-server` | `ghcr.io/jjinbbang-web/jjinbbang-server` |
+
+`scripts/update-admin-image.sh`는 위 payload와 환경/branch 매핑을 검증하고 선택한
+overlay의 선택 component만 `IMAGE@sha256:...`로 갱신한다. workflow는 이 공유
+스크립트 밖에서 dispatch sender, 원격 source branch HEAD, 실제 GHCR manifest
+digest를 검증한다.
+
+현재 workflow의 `contents` 권한은 read-only이고 자동 commit/push 단계는
+비활성화되어 있다. 따라서 workflow 실행 결과는 검증된 working-tree 변경이며
+`jjinbbang-lab/main`에는 반영되지 않는다. 자동 commit/push를 활성화하려면 별도
+사용자 승인을 받은 뒤 write-scoped GitHub App checkout과 commit/push 단계를
+함께 검토해야 한다. 승인 전에는 이를 활성화하지 않는다.
+
+source 저장소의 dispatch workflow에 다음 Actions Secret을 설정한다.
 
 ```text
 GITOPS_APP_ID
 GITOPS_APP_PRIVATE_KEY
 ```
 
-GitHub App은 `jjinbbang-lab`에만 설치하고 Contents read/write 권한을 가진다.
-server source branch HEAD는 공개 GitHub API로 읽어 App token의 쓰기 범위를 lab 밖으로
-넓히지 않는다. 개인 PAT는 사용하지 않는다. 각 앱 이미지 게시에는 저장소 기본
-`GITHUB_TOKEN`의 Packages write 권한을 쓴다.
+GitHub App은 repository dispatch 발신에 사용한다. source branch HEAD는 공개
+GitHub API로 확인하고 개인 PAT는 사용하지 않는다. 각 앱 이미지 게시에는 저장소
+기본 `GITHUB_TOKEN`의 Packages write 권한을 쓴다. 향후 자동 commit/push 승인
+시에는 App을 `jjinbbang-lab`에 설치하고 Contents write 범위를 lab 저장소로만
+제한한다.
 
 `jjinbbang-lab` Actions variable에는 repository dispatch를 보내는 GitHub App
 bot login을 정확히 설정한다.
@@ -84,10 +98,9 @@ access에 `JJinBBang-web/jjinbbang-lab`을 Read로 추가한다. 수신 workflow
 `GITHUB_TOKEN`은 Packages read 외 권한을 사용하지 않고, `image:SHA`가 가리키는
 실제 manifest digest와 dispatch digest를 대조한다.
 
-`jjinbbang-lab` 저장소의 Actions workflow permission도 `Read and write`로
-설정한다. `main` branch protection을 켠 경우 GitHub Actions bot의 이 자동
-커밋 경로를 허용하거나, 정책상 직접 push가 불가능하면 별도 승인 후 PR 생성
-방식으로 바꾼다.
+현재 `jjinbbang-lab` 수신 workflow에는 Contents write 권한을 주지 않는다.
+자동 반영을 별도 승인한 뒤에도 `main` branch protection이 직접 push를 막으면
+승인 범위에 PR 생성 방식을 포함해 다시 결정한다.
 
 ## 최초 활성화 전 게이트
 
@@ -100,8 +113,8 @@ access에 `JJinBBang-web/jjinbbang-lab`을 Read로 추가한다. 수신 workflow
    `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET` 키를 가진다.
 4. Authentik bootstrap Secret에 `ADMIN_OIDC_CLIENT_SECRET`과
    `ADMIN_OIDC_DEV_CLIENT_SECRET`이 들어 있고 blueprint Job 재적용이 성공했다.
-5. 서버 GHCR image가 실제 SHA 태그로 존재하며 클러스터에서 pull 가능하다.
-6. dev/prod overlay의 image가 실제 `sha256` digest를 가리킨다.
+5. 웹/API GHCR image가 실제 SHA 태그로 존재하며 클러스터에서 pull 가능하다.
+6. dev/prod overlay의 웹/API image가 실제 `sha256` digest를 가리킨다.
 
 준비 후 Authentik blueprint를 다시 적용한다.
 
@@ -123,6 +136,18 @@ kubectl -n jjinbbang-admin rollout status deployment/jjinbbang-admin-server --ti
 ```
 
 ## 검증
+
+GitOps payload와 overlay 변경 불변식은 임시 복사본에서 먼저 검증한다.
+
+```bash
+bash -n scripts/update-admin-image.sh scripts/test-update-admin-image.sh scripts/validate-manifests.sh
+./scripts/test-update-admin-image.sh
+./scripts/validate-manifests.sh
+```
+
+첫 번째 테스트는 잘못된 component/environment/source/ref/image/digest를 거부하고,
+dev web과 prod server fixture에서 선택하지 않은 환경과 component가 byte-for-byte
+동일한지 확인한다.
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \

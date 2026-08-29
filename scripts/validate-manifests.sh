@@ -12,7 +12,10 @@ import sys
 import yaml
 
 failed = False
+skip_parts = {".git", ".omo", "node_modules"}
 for path in sorted(Path(".").rglob("*.yaml")) + sorted(Path(".").rglob("*.yml")):
+    if any(part in skip_parts for part in path.parts):
+        continue
     try:
         with path.open() as handle:
             list(yaml.safe_load_all(handle))
@@ -26,7 +29,7 @@ print("yaml parse ok")
 PY
 else
   ruby -ryaml -e 'ARGV.each { |path| YAML.load_stream(File.read(path)) }; puts "yaml parse ok"' \
-    $(find . -name '*.yaml' -o -name '*.yml' | sort)
+    $(find . \( -path './.git' -o -path './.omo' -o -path './node_modules' \) -prune -o \( -name '*.yaml' -o -name '*.yml' \) -print | sort)
 fi
 
 echo "== shell syntax =="
@@ -76,6 +79,47 @@ kubectl kustomize apps/jjinbbang-admin/overlays/prod >/tmp/jjinbbang-lab-jjinbba
 
 echo "== kubectl kustomize jjinbbang-admin compatibility path =="
 kubectl kustomize apps/jjinbbang-admin >/tmp/jjinbbang-lab-jjinbbang-admin.yaml
+
+echo "== jjinbbang-admin web runtime contract =="
+ruby -ryaml -e '
+  rendered_manifests = {
+    "dev" => YAML.load_stream(File.read(ARGV.fetch(0))),
+    "prod" => YAML.load_stream(File.read(ARGV.fetch(1))),
+    "compatibility" => YAML.load_stream(File.read(ARGV.fetch(2)))
+  }
+  missing = []
+
+  rendered_manifests.each do |environment, manifests|
+    if manifests.empty?
+      missing << "#{environment}: rendered manifests are empty"
+      next
+    end
+
+    web_deployment = manifests.find do |doc|
+      doc.is_a?(Hash) && doc["kind"] == "Deployment" && doc.dig("metadata", "name") == "jjinbbang-admin-web"
+    end
+    web_service = manifests.find do |doc|
+      doc.is_a?(Hash) && doc["kind"] == "Service" && doc.dig("metadata", "name") == "jjinbbang-admin-web"
+    end
+    ingress = manifests.find do |doc|
+      doc.is_a?(Hash) && doc["kind"] == "Ingress" && doc.dig("metadata", "name") == "jjinbbang-admin"
+    end
+    ingress_paths = ingress&.dig("spec", "rules")&.flat_map { |rule| rule.dig("http", "paths") || [] } || []
+
+    missing << "#{environment}: web Deployment missing" unless web_deployment
+    missing << "#{environment}: web Service missing" unless web_service
+    missing << "#{environment}: web Ingress path / missing" unless ingress_paths.any? { |path| path["path"] == "/" }
+
+    next unless ["dev", "prod"].include?(environment)
+
+    web_image = web_deployment&.dig("spec", "template", "spec", "containers", 0, "image")
+    missing << "#{environment}: web image missing" if web_image.to_s.strip.empty?
+  end
+
+  abort "web-resource-missing: #{missing.join("; ")}" unless missing.empty?
+' /tmp/jjinbbang-lab-jjinbbang-admin-dev.yaml \
+  /tmp/jjinbbang-lab-jjinbbang-admin-prod.yaml \
+  /tmp/jjinbbang-lab-jjinbbang-admin.yaml
 
 echo "== kubectl kustomize app applications =="
 kubectl kustomize platform/applications/apps >/tmp/jjinbbang-lab-applications-apps.yaml

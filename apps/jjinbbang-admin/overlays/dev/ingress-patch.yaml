@@ -25,10 +25,17 @@ spec:
                 name: jjinbbang-admin-server
                 port:
                   number: 8080
-          - path: /login
+          - path: /login/oauth2
             pathType: Prefix
             backend:
               service:
                 name: jjinbbang-admin-server
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jjinbbang-admin-web
                 port:
                   number: 8080

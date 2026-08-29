@@ -8,3 +8,5 @@ resources:
 images:
   - name: ghcr.io/jjinbbang-web/jjinbbang-server
     newTag: bootstrap
+  - name: ghcr.io/jjinbbang-web/jjinbbang-admin
+    newTag: bootstrap

@@ -5,3 +5,5 @@
 *.pem
 *.kubeconfig
 kubeconfig*
+
+.omo/

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jjinbbang-admin-web
+  labels:
+    app.kubernetes.io/name: jjinbbang-admin-web
+    app.kubernetes.io/part-of: jjinbbang-admin
+spec:
+  selector:
+    app.kubernetes.io/name: jjinbbang-admin-web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

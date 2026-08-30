@@ -117,9 +117,9 @@ data:
           client_secret: !Env ADMIN_OIDC_DEV_CLIENT_SECRET
           redirect_uris:
             - matching_mode: strict
-              url: https://admin-dev.jjinbbang.kr/login/oauth2/code/authentik
+              url: https://dev.admin.jjinbbang.kr/login/oauth2/code/authentik
             - matching_mode: strict
-              url: https://admin-dev.jjinbbang.kr/login?logout
+              url: https://dev.admin.jjinbbang.kr/login?logout
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
             - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]

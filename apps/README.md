@@ -33,7 +33,7 @@ Admin API:
 
 - `apps/jjinbbang-admin/base`는 관리자 Spring 서버 공통 리소스를 정의한다.
 - `apps/jjinbbang-admin/overlays/dev`는 `jjinbbang-admin-dev` namespace와
-  `admin-dev.jjinbbang.kr`을 사용한다.
+  `dev.admin.jjinbbang.kr`을 사용한다.
 - `apps/jjinbbang-admin/overlays/prod`는 `jjinbbang-admin` namespace와
   `admin.jjinbbang.kr`을 사용한다.
 - 관리자 프론트엔드 Deployment와 루트 경로는 프론트 담당 범위이므로 포함하지 않는다.

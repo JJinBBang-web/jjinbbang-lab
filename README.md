@@ -61,7 +61,7 @@ Canonical hostnames:
 auth.jjinbbang.kr
 argo.jjinbbang.kr
 n8n.jjinbbang.kr
-admin-dev.jjinbbang.kr
+dev.admin.jjinbbang.kr
 admin.jjinbbang.kr
 ```
 

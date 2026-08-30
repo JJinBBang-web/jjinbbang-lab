@@ -5,10 +5,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - admin-dev.jjinbbang.kr
+        - dev.admin.jjinbbang.kr
       secretName: jjinbbang-admin-dev-public-tls
   rules:
-    - host: admin-dev.jjinbbang.kr
+    - host: dev.admin.jjinbbang.kr
       http:
         paths:
           - path: /api

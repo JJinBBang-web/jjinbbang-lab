@@ -112,9 +112,19 @@ ruby -ryaml -e '
 
     next unless ["dev", "prod"].include?(environment)
 
-    web_image = web_deployment&.dig("spec", "template", "spec", "containers", 0, "image")
-    missing << "#{environment}: web image missing" if web_image.to_s.strip.empty?
-  end
+   web_image = web_deployment&.dig("spec", "template", "spec", "containers", 0, "image")
+   missing << "#{environment}: web image missing" if web_image.to_s.strip.empty?
+
+    ["jjinbbang-admin-web", "jjinbbang-admin-server"].each do |name|
+      deployment = manifests.find do |doc|
+        doc.is_a?(Hash) && doc["kind"] == "Deployment" && doc.dig("metadata", "name") == name
+      end
+      pull_secrets = deployment&.dig("spec", "template", "spec", "imagePullSecrets") || []
+      unless pull_secrets.any? { |secret| secret.is_a?(Hash) && secret["name"] == "ghcr-pull" }
+        missing << "#{environment}: #{name} imagePullSecrets ghcr-pull missing"
+      end
+    end
+ end
 
   abort "web-resource-missing: #{missing.join("; ")}" unless missing.empty?
 ' /tmp/jjinbbang-lab-jjinbbang-admin-dev.yaml \

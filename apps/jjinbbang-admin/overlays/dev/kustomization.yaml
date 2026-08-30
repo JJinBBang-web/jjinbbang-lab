@@ -6,9 +6,11 @@ resources:
   - namespace.yaml
 images:
   - name: ghcr.io/jjinbbang-web/jjinbbang-server
-    newTag: bootstrap
+    newName: ghcr.io/jjinbbang-web/jjinbbang-server
+    digest: sha256:5a0ef61bf6a22fa9e11557bec0bc9c9623ed3861e1247c6be90a67f8617b046c
   - name: ghcr.io/jjinbbang-web/jjinbbang-admin
-    newTag: bootstrap
+    newName: ghcr.io/jjinbbang-web/jjinbbang-admin
+    digest: sha256:185b8aef64dce66c19f23b9ec5cc1b7e5c66e906473baed1ed9cf92ca3212b45
 patches:
   - path: configmap-patch.yaml
   - path: deployment-patch.yaml

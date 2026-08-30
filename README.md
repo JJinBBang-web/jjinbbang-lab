@@ -142,7 +142,8 @@ SSO 기준:
 | 경로 | 역할 |
 | --- | --- |
 | `.github/workflows/validate.yml` | manifest 검증 CI |
-| `.github/workflows/update-admin-image.yml` | 관리자 웹/API dev/prod 이미지 digest를 검증해 선택한 GitOps overlay만 갱신 |
+| `.github/workflows/update-admin-image.yml` | 검증된 main 이미지를 prod overlay에 즉시 반영 |
+| `.github/workflows/reconcile-admin-dev-images.yml` | 매시간 develop 웹/API ARM64 이미지를 dev overlay에 반영 |
 | `scripts/update-admin-image.sh` | 관리자 이미지 dispatch payload 검증과 digest-pinned overlay 갱신 공유 로직 |
 | `platform/bootstrap` | 최초 root Argo CD Application |
 | `platform/applications` | Argo CD가 관리할 platform Application 목록 |
@@ -158,9 +159,9 @@ SSO 기준:
 관리자 웹/API의 SSO, 환경별 Secret, 이미지 dispatch와 활성화 절차는
 `docs/runbooks/admin-sso-delivery.md`를 따른다.
 
-관리자 이미지 수신 workflow의 `jjinbbang-lab/main` 자동 commit/push는 현재
-비활성화되어 있다. write 권한과 자동 반영을 활성화하려면 별도 사용자 승인이
-필요하다.
+`main` 이미지 dispatch는 검증 후 prod overlay에 즉시 반영한다. dev overlay는
+매시간 웹과 API의 `develop` HEAD에 대응하는 ARM64 image digest로 조정한다.
+두 workflow는 같은 concurrency group을 사용하고 대상 overlay 파일만 커밋한다.
 
 ## Bootstrap 절차
 

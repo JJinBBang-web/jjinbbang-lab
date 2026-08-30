@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPDATE_SCRIPT="$ROOT_DIR/scripts/update-admin-image.sh"
 WORKFLOW="$ROOT_DIR/.github/workflows/update-admin-image.yml"
+SCHEDULE_WORKFLOW="$ROOT_DIR/.github/workflows/reconcile-admin-dev-images.yml"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/jjinbbang-admin-image-test.XXXXXX")"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -172,10 +173,27 @@ grep -Fq 'EVENT_SENDER' "$WORKFLOW" || fail "workflow sender validation is missi
 grep -Fq 'api.github.com/repos/$SOURCE_REPOSITORY/commits/$SOURCE_REF' "$WORKFLOW" ||
   fail "workflow remote branch HEAD validation is missing"
 grep -Fq 'docker buildx imagetools inspect' "$WORKFLOW" || fail "workflow GHCR digest validation is missing"
+grep -Fq 'platform.architecture == "arm64"' "$WORKFLOW" || fail "dispatch workflow does not require ARM64"
 grep -Fq 'imranismail/setup-kustomize' "$WORKFLOW" || fail "workflow does not install real kustomize"
-if grep -Ev '^[[:space:]]*#' "$WORKFLOW" | grep -Eq 'git (commit|push)'; then
-  fail "workflow still has active automatic commit/push"
-fi
-echo "PASS: workflow delegates pure validation/update and keeps remote checks with auto-push disabled"
+grep -Fq 'contents: write' "$WORKFLOW" || fail "dispatch workflow cannot persist desired state"
+grep -Fq 'target="apps/jjinbbang-admin/overlays/${DEPLOY_ENVIRONMENT}/kustomization.yaml"' "$WORKFLOW" ||
+  fail "dispatch workflow does not limit writes to the selected overlay"
+grep -Fq 'git add "$target"' "$WORKFLOW" || fail "dispatch workflow does not stage only the selected overlay"
+grep -Fq 'git push origin HEAD:main' "$WORKFLOW" || fail "dispatch workflow does not persist the validated digest"
+echo "PASS: dispatch workflow validates and persists only the selected overlay"
+
+[[ -f "$SCHEDULE_WORKFLOW" ]] || fail "missing scheduled dev reconciliation workflow"
+grep -Fq "cron: '17 * * * *'" "$SCHEDULE_WORKFLOW" || fail "dev reconciliation is not hourly"
+grep -Fq 'workflow_dispatch:' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation cannot be run manually"
+grep -Fq 'group: update-admin-image' "$SCHEDULE_WORKFLOW" || fail "dev and prod updates do not share a concurrency boundary"
+grep -Fq 'for component in web server' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not update both components"
+grep -Fq 'commits/develop' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not resolve develop HEAD"
+grep -Fq 'platform.architecture == "arm64"' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not require ARM64"
+grep -Fq 'DEPLOY_ENVIRONMENT=dev' "$SCHEDULE_WORKFLOW" || fail "scheduled reconciliation does not target dev"
+grep -Fq 'target="apps/jjinbbang-admin/overlays/dev/kustomization.yaml"' "$SCHEDULE_WORKFLOW" ||
+  fail "scheduled reconciliation can write outside the dev overlay"
+grep -Fq 'git add "$target"' "$SCHEDULE_WORKFLOW" || fail "scheduled reconciliation does not stage only dev"
+grep -Fq 'git push origin HEAD:main' "$SCHEDULE_WORKFLOW" || fail "scheduled reconciliation does not persist dev state"
+echo "PASS: hourly reconciliation validates ARM64 develop images and persists only dev"
 
 echo "All update-admin-image tests passed"

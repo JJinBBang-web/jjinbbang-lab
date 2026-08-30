@@ -6,7 +6,7 @@ on:
       - admin-image-built
 
 permissions:
-  contents: read
+  contents: write
   packages: read
 
 concurrency:
@@ -68,6 +68,12 @@ jobs:
           IMAGE_DIGEST: ${{ github.event.client_payload.image_digest }}
         run: |
           set -euo pipefail
+          inspection="$(docker buildx imagetools inspect "$IMAGE:$TAG" --raw)"
+          if ! jq -e 'any(.manifests[]?; .platform.os == "linux" and .platform.architecture == "arm64")' <<<"$inspection" >/dev/null; then
+            echo "image does not contain linux/arm64" >&2
+            exit 1
+          fi
+
           RESOLVED_DIGEST="$(
             docker buildx imagetools inspect "$IMAGE:$TAG" \
               --format '{{json .Manifest}}' | jq -r .digest
@@ -96,16 +102,20 @@ jobs:
       - name: Validate desired state
         run: ./scripts/validate-manifests.sh
 
-      # Automatic commit/push to jjinbbang-lab/main is intentionally disabled.
-      # Enabling it requires separate user approval and a write-scoped checkout token.
-      # - name: Commit desired state
-      #   env:
-      #     COMPONENT: ${{ github.event.client_payload.component }}
-      #     DEPLOY_ENVIRONMENT: ${{ github.event.client_payload.environment }}
-      #     SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
-      #   run: |
-      #     git config user.name "jjinbbang-gitops[bot]"
-      #     git config user.email "jjinbbang-gitops[bot]@users.noreply.github.com"
-      #     git add "apps/jjinbbang-admin/overlays/${DEPLOY_ENVIRONMENT}/kustomization.yaml"
-      #     git commit -m "🔧 Chore: 관리자 ${COMPONENT} ${DEPLOY_ENVIRONMENT} 이미지 ${SOURCE_SHA} 반영"
-      #     git push origin HEAD:main
+      - name: Commit desired state
+        env:
+          COMPONENT: ${{ github.event.client_payload.component }}
+          DEPLOY_ENVIRONMENT: ${{ github.event.client_payload.environment }}
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
+        run: |
+          target="apps/jjinbbang-admin/overlays/${DEPLOY_ENVIRONMENT}/kustomization.yaml"
+          if git diff --quiet -- "$target"; then
+            echo "Desired state already references ${COMPONENT}@${SOURCE_SHA}"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$target"
+          git commit -m "🔧 Chore: 관리자 ${COMPONENT} ${DEPLOY_ENVIRONMENT} 이미지 ${SOURCE_SHA} 반영"
+          git push origin HEAD:main

@@ -43,14 +43,16 @@
 component별 source repository develop/main
 -> test/build
 -> GHCR에 전체 Git SHA 태그와 digest로 이미지 게시
--> GitHub App으로 jjinbbang-lab repository_dispatch
--> 발신 App, component별 source/image, source branch HEAD, 환경, image digest 검증
--> 해당 환경 overlay의 선택한 component image digest 갱신
+-> main은 GitHub App으로 jjinbbang-lab repository_dispatch
+-> 발신 App, component별 source/image, source branch HEAD, 환경, ARM64 image digest 검증
+-> prod overlay의 선택한 component image digest 즉시 갱신
+-> develop은 매시간 웹/API ARM64 image digest를 dev overlay에 조정
 -> manifest 전체 검증
--> 사용자 승인 전까지 자동 commit/push 중지
+-> 대상 overlay 파일만 jjinbbang-lab/main에 자동 반영
 ```
 
-`develop`은 `dev` overlay만 갱신하고 `main`은 `prod` overlay만 갱신한다.
+`develop`은 매시간 `dev` overlay만 갱신하고 `main`은 dispatch로 `prod` overlay만
+갱신한다.
 component별 허용 payload는 다음과 같다. 태그는 source SHA와 같은 40자리 소문자
 hex이고 digest는 `sha256:` 뒤 64자리 소문자 hex여야 한다.
 
@@ -64,11 +66,10 @@ overlay의 선택 component만 `IMAGE@sha256:...`로 갱신한다. workflow는 �
 스크립트 밖에서 dispatch sender, 원격 source branch HEAD, 실제 GHCR manifest
 digest를 검증한다.
 
-현재 workflow의 `contents` 권한은 read-only이고 자동 commit/push 단계는
-비활성화되어 있다. 따라서 workflow 실행 결과는 검증된 working-tree 변경이며
-`jjinbbang-lab/main`에는 반영되지 않는다. 자동 commit/push를 활성화하려면 별도
-사용자 승인을 받은 뒤 write-scoped GitHub App checkout과 commit/push 단계를
-함께 검토해야 한다. 승인 전에는 이를 활성화하지 않는다.
+두 workflow는 `contents: write`와 같은 `update-admin-image` concurrency group을
+사용한다. 원격 branch HEAD, ARM64 manifest, digest와 전체 manifest를 검증한 뒤
+선택한 overlay의 `kustomization.yaml`만 stage하여 `jjinbbang-lab/main`에 반영한다.
+변경할 digest가 없으면 commit 없이 성공 종료한다.
 
 source 저장소의 dispatch workflow에 다음 Actions Secret을 설정한다.
 
@@ -79,9 +80,8 @@ GITOPS_APP_PRIVATE_KEY
 
 GitHub App은 repository dispatch 발신에 사용한다. source branch HEAD는 공개
 GitHub API로 확인하고 개인 PAT는 사용하지 않는다. 각 앱 이미지 게시에는 저장소
-기본 `GITHUB_TOKEN`의 Packages write 권한을 쓴다. 향후 자동 commit/push 승인
-시에는 App을 `jjinbbang-lab`에 설치하고 Contents write 범위를 lab 저장소로만
-제한한다.
+기본 `GITHUB_TOKEN`의 Packages write 권한을 쓴다. lab workflow는 저장소의
+`GITHUB_TOKEN`으로 검증된 overlay 변경만 `main`에 반영한다.
 
 `jjinbbang-lab` Actions variable에는 repository dispatch를 보내는 GitHub App
 bot login을 정확히 설정한다.
@@ -98,9 +98,8 @@ access에 `JJinBBang-web/jjinbbang-lab`을 Read로 추가한다. 수신 workflow
 `GITHUB_TOKEN`은 Packages read 외 권한을 사용하지 않고, `image:SHA`가 가리키는
 실제 manifest digest와 dispatch digest를 대조한다.
 
-현재 `jjinbbang-lab` 수신 workflow에는 Contents write 권한을 주지 않는다.
-자동 반영을 별도 승인한 뒤에도 `main` branch protection이 직접 push를 막으면
-승인 범위에 PR 생성 방식을 포함해 다시 결정한다.
+`main` branch protection이 Actions의 직접 push를 막도록 변경되면 workflow를
+PR 생성 방식으로 전환해야 한다.
 
 ## 최초 활성화 전 게이트
 
@@ -111,6 +110,8 @@ access에 `JJinBBang-web/jjinbbang-lab`을 Read로 추가한다. 수신 workflow
 2. dev/prod용 빈 MySQL database/schema와 전용 사용자가 준비되어 있다.
 3. 두 namespace의 `jjinbbang-admin-secrets`가 각각 `DB_*`,
    `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET` 키를 가진다.
+   같은 namespace에 `ghcr-pull` docker-registry Secret이 있어야 하며,
+   관리자 web/server Deployment는 이 Secret을 `imagePullSecrets`로 참조한다.
 4. Authentik bootstrap Secret에 `ADMIN_OIDC_CLIENT_SECRET`과
    `ADMIN_OIDC_DEV_CLIENT_SECRET`이 들어 있고 blueprint Job 재적용이 성공했다.
 5. 웹/API GHCR image가 실제 SHA 태그로 존재하며 클러스터에서 pull 가능하다.

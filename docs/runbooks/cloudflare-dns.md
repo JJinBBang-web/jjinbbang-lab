@@ -73,11 +73,12 @@ Zone:Zone:Read
 `check-dns.sh`는 현재 nameserver 위임, `auth/argo/n8n` A record, worker edge
 80/443 포트를 함께 확인한다.
 
-API ingress까지 활성화할 때는 같은 worker edge IP로 앱 레코드를 추가한다.
+관리자 앱을 활성화할 때는 같은 worker edge IP로 `admin`과 nested
+`dev.admin` 레코드를 추가한다. `dev.admin`은 `dev.admin.jjinbbang.kr`이 된다.
 
 ```bash
-JJINBBANG_DNS_RECORDS="auth argo n8n api-dev" ./scripts/cloudflare-upsert-dns.sh
-JJINBBANG_DNS_RECORDS="auth argo n8n api-dev" ./scripts/check-dns.sh
+JJINBBANG_DNS_RECORDS="auth argo n8n admin dev.admin" ./scripts/cloudflare-upsert-dns.sh
+JJINBBANG_DNS_RECORDS="auth argo n8n admin dev.admin" ./scripts/check-dns.sh
 ```
 
 `api.jjinbbang.kr`은 기존 AWS load balancer로 연결되어 있다. `api` 레코드는
@@ -112,8 +113,8 @@ set +a
 `api-dev`까지 만들 때:
 
 ```bash
-JJINBBANG_DNS_RECORDS="auth argo n8n api-dev" ./scripts/route53-upsert-dns.sh
-JJINBBANG_DNS_RECORDS="auth argo n8n api-dev" ./scripts/check-dns.sh
+JJINBBANG_DNS_RECORDS="auth argo n8n admin dev.admin api-dev" ./scripts/route53-upsert-dns.sh
+JJINBBANG_DNS_RECORDS="auth argo n8n admin dev.admin api-dev" ./scripts/check-dns.sh
 ```
 
 `api.jjinbbang.kr` cutover는 별도 승인 후에만 한다.

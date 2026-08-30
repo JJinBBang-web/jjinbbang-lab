@@ -131,8 +131,8 @@ client secret은 `authentik-sso-bootstrap`의 `ADMIN_OIDC_CLIENT_SECRET`과 관�
 | --- | --- |
 | Name / slug | `jjinbbang-admin-dev` |
 | Client type | Confidential |
-| Redirect URI | `https://admin-dev.jjinbbang.kr/login/oauth2/code/authentik` |
-| Post logout URI | `https://admin-dev.jjinbbang.kr/login?logout` |
+| Redirect URI | `https://dev.admin.jjinbbang.kr/login/oauth2/code/authentik` |
+| Post logout URI | `https://dev.admin.jjinbbang.kr/login?logout` |
 | Issuer | `https://auth.jjinbbang.kr/application/o/jjinbbang-admin-dev/` |
 | Group | `jjinbbang-backoffice-admins-dev` |
 

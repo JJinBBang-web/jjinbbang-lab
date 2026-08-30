@@ -4,7 +4,7 @@
 
 | 환경 | 웹/API 브랜치 | Host | Namespace | Authentik Provider |
 | --- | --- | --- | --- | --- |
-| dev | `develop` | `admin-dev.jjinbbang.kr` | `jjinbbang-admin-dev` | `jjinbbang-admin-dev` |
+| dev | `develop` | `dev.admin.jjinbbang.kr` | `jjinbbang-admin-dev` | `jjinbbang-admin-dev` |
 | prod | `main` | `admin.jjinbbang.kr` | `jjinbbang-admin` | `jjinbbang-admin` |
 
 각 환경은 별도 DB/schema, Secret, OIDC client/redirect URI를 사용한다.
@@ -106,7 +106,7 @@ PR 생성 방식으로 전환해야 한다.
 아래 조건을 모두 충족하기 전에는 관리자 API Argo CD Application을 적용하지
 않는다.
 
-1. `admin-dev.jjinbbang.kr`와 `admin.jjinbbang.kr`이 worker edge를 가리킨다.
+1. `dev.admin.jjinbbang.kr`와 `admin.jjinbbang.kr`이 worker edge를 가리킨다.
 2. dev/prod용 빈 MySQL database/schema와 전용 사용자가 준비되어 있다.
 3. 두 namespace의 `jjinbbang-admin-secrets`가 각각 `DB_*`,
    `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET` 키를 가진다.
@@ -152,11 +152,11 @@ dev web과 prod server fixture에서 선택하지 않은 환경과 component가 
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  https://admin-dev.jjinbbang.kr/api/admin/auth/me
+  https://dev.admin.jjinbbang.kr/api/admin/auth/me
 curl -sS -o /dev/null -w '%{http_code}\n' \
   https://admin.jjinbbang.kr/api/admin/auth/me
 curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' \
-  https://admin-dev.jjinbbang.kr/oauth2/authorization/authentik
+  https://dev.admin.jjinbbang.kr/oauth2/authorization/authentik
 curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' \
   https://admin.jjinbbang.kr/oauth2/authorization/authentik
 ```

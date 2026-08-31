@@ -189,6 +189,11 @@ grep -Fq 'group: update-admin-image' "$SCHEDULE_WORKFLOW" || fail "dev and prod 
 grep -Fq 'for component in web server' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not update both components"
 grep -Fq 'commits/develop' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not resolve develop HEAD"
 grep -Fq 'platform.architecture == "arm64"' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not require ARM64"
+grep -Fq 'username: ${{ secrets.GHCR_PULL_USERNAME }}' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not use the dedicated GHCR reader username"
+grep -Fq 'password: ${{ secrets.GHCR_PULL_TOKEN }}' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not use the dedicated GHCR reader token"
+if grep -Fq 'password: ${{ secrets.GITHUB_TOKEN }}' "$SCHEDULE_WORKFLOW"; then
+  fail "dev reconciliation still uses a repository-scoped token for cross-repository private packages"
+fi
 grep -Fq 'DEPLOY_ENVIRONMENT=dev' "$SCHEDULE_WORKFLOW" || fail "scheduled reconciliation does not target dev"
 grep -Fq 'target="apps/jjinbbang-admin/overlays/dev/kustomization.yaml"' "$SCHEDULE_WORKFLOW" ||
   fail "scheduled reconciliation can write outside the dev overlay"

@@ -26,8 +26,8 @@ jobs:
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.GHCR_PULL_USERNAME }}
+          password: ${{ secrets.GHCR_PULL_TOKEN }}
 
       - uses: imranismail/setup-kustomize@2ba527d4d055ab63514ba50a99456fc35684947f
 

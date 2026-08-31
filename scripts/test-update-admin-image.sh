@@ -174,6 +174,11 @@ grep -Fq 'api.github.com/repos/$SOURCE_REPOSITORY/commits/$SOURCE_REF' "$WORKFLO
   fail "workflow remote branch HEAD validation is missing"
 grep -Fq 'docker buildx imagetools inspect' "$WORKFLOW" || fail "workflow GHCR digest validation is missing"
 grep -Fq 'platform.architecture == "arm64"' "$WORKFLOW" || fail "dispatch workflow does not require ARM64"
+grep -Fq 'username: ${{ secrets.GHCR_PULL_USERNAME }}' "$WORKFLOW" || fail "dispatch workflow does not use the dedicated GHCR reader username"
+grep -Fq 'password: ${{ secrets.GHCR_PULL_TOKEN }}' "$WORKFLOW" || fail "dispatch workflow does not use the dedicated GHCR reader token"
+if grep -Fq 'password: ${{ secrets.GITHUB_TOKEN }}' "$WORKFLOW"; then
+  fail "dispatch workflow still uses a repository-scoped token for cross-repository private packages"
+fi
 grep -Fq 'imranismail/setup-kustomize' "$WORKFLOW" || fail "workflow does not install real kustomize"
 grep -Fq 'contents: write' "$WORKFLOW" || fail "dispatch workflow cannot persist desired state"
 grep -Fq 'target="apps/jjinbbang-admin/overlays/${DEPLOY_ENVIRONMENT}/kustomization.yaml"' "$WORKFLOW" ||

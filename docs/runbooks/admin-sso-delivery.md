@@ -172,3 +172,23 @@ Provider, DNS, Secret 적용 후 브라우저에서 검증한다. 프론트팀�
 되돌린다. DB migration은 이미 적용된 파일을 수정하지 않고 새 Flyway migration
 으로만 보정한다. Argo CD는 `prune=false`이므로 리소스 삭제는 별도 승인 후
 수동으로 처리한다.
+
+CoreDNS split-horizon 변경을 되돌릴 때는 Git revert만으로는 충분하지 않다.
+플랫폼 Argo Application이 `prune=false`라서 Git에서 사라진 ConfigMap이
+클러스터에 남기 때문이다. 먼저 해당 GitOps 커밋을 revert하고 Argo가 새 revision을
+관찰한 것을 확인한 다음, 승인된 운영 창에서 아래 대상만 제거한다.
+
+```bash
+kubectl -n kube-system delete configmap coredns-custom --ignore-not-found
+kubectl -n kube-system rollout restart deployment/coredns
+kubectl -n kube-system rollout status deployment/coredns --timeout=120s
+if kubectl -n kube-system get configmap coredns-custom >/dev/null 2>&1; then
+  echo "coredns-custom still exists" >&2
+  exit 1
+fi
+```
+
+삭제 후 관리자 API Pod에서 Authentik과 MySQL 이름 해석을 다시 확인한다. 기존
+공용 resolver만으로 두 이름을 해석하지 못하면 관리자 rollout을 진행하지 않고
+revert 전 ConfigMap을 복구한다. 이 삭제 승인은 일반 Git revert나 Argo sync
+승인에 포함되지 않는다.

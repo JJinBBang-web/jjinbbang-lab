@@ -50,6 +50,11 @@ ruby -ryaml -e '
   abort "OCI MySQL private DNS missing" unless data.include?("jjinbbang-mysql.subnet05251109.vcn05251108.oraclevcn.com") && data.include?("10.0.0.72")
 ' /tmp/jjinbbang-lab-platform.yaml
 
+echo "== CoreDNS rollback contract =="
+grep -Fq 'delete configmap coredns-custom --ignore-not-found' docs/runbooks/admin-sso-delivery.md
+grep -Fq 'rollout restart deployment/coredns' docs/runbooks/admin-sso-delivery.md
+grep -Fq 'coredns-custom still exists' docs/runbooks/admin-sso-delivery.md
+
 echo "== kubectl kustomize n8n =="
 kubectl kustomize platform/workloads/n8n >/tmp/jjinbbang-lab-n8n.yaml
 

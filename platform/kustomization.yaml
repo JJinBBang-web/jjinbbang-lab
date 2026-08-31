@@ -14,3 +14,4 @@ resources:
   - argocd/argocd-public-ingress.yaml
   - cert-manager/clusterissuer-letsencrypt-http01.yaml
   - cert-manager/clusterissuer-letsencrypt-dns01-cloudflare.yaml
+  - coredns/custom-configmap.yaml

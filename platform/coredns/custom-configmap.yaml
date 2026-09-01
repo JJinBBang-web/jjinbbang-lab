@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  authentik-private.server: |
+    auth.jjinbbang.kr:53 {
+      errors
+      hosts {
+        10.0.0.20 auth.jjinbbang.kr
+        10.0.0.90 auth.jjinbbang.kr
+        ttl 30
+      }
+    }
+  mysql-private.server: |
+    jjinbbang-mysql.subnet05251109.vcn05251108.oraclevcn.com:53 {
+      errors
+      hosts {
+        10.0.0.72 jjinbbang-mysql.subnet05251109.vcn05251108.oraclevcn.com
+        ttl 30
+      }
+    }

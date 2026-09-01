@@ -38,6 +38,23 @@ bash -n scripts/*.sh
 echo "== kubectl kustomize platform =="
 kubectl kustomize platform >/tmp/jjinbbang-lab-platform.yaml
 
+echo "== CoreDNS split-horizon contract =="
+ruby -ryaml -e '
+  manifests = YAML.load_stream(File.read(ARGV.fetch(0)))
+  config = manifests.find do |doc|
+    doc.is_a?(Hash) && doc["kind"] == "ConfigMap" && doc.dig("metadata", "name") == "coredns-custom"
+  end
+  data = config&.fetch("data", {})&.values&.join("\n").to_s
+  abort "coredns-custom ConfigMap missing" unless config&.dig("metadata", "namespace") == "kube-system"
+  abort "Authentik private edge DNS missing" unless data.include?("auth.jjinbbang.kr") && data.include?("10.0.0.20") && data.include?("10.0.0.90")
+  abort "OCI MySQL private DNS missing" unless data.include?("jjinbbang-mysql.subnet05251109.vcn05251108.oraclevcn.com") && data.include?("10.0.0.72")
+' /tmp/jjinbbang-lab-platform.yaml
+
+echo "== CoreDNS rollback contract =="
+grep -Fq 'delete configmap coredns-custom --ignore-not-found' docs/runbooks/admin-sso-delivery.md
+grep -Fq 'rollout restart deployment/coredns' docs/runbooks/admin-sso-delivery.md
+grep -Fq 'coredns-custom still exists' docs/runbooks/admin-sso-delivery.md
+
 echo "== kubectl kustomize n8n =="
 kubectl kustomize platform/workloads/n8n >/tmp/jjinbbang-lab-n8n.yaml
 
@@ -125,6 +142,18 @@ ruby -ryaml -e '
       pull_secrets = deployment&.dig("spec", "template", "spec", "imagePullSecrets") || []
       unless pull_secrets.any? { |secret| secret.is_a?(Hash) && secret["name"] == "ghcr-pull" }
         missing << "#{environment}: #{name} imagePullSecrets ghcr-pull missing"
+      end
+
+      expected_uid = name == "jjinbbang-admin-server" ? 100 : 101
+      pod_security = deployment&.dig("spec", "template", "spec", "securityContext") || {}
+      container_security = deployment&.dig("spec", "template", "spec", "containers", 0, "securityContext") || {}
+      missing << "#{environment}: #{name} fsGroup must be 101" unless pod_security["fsGroup"] == 101
+      missing << "#{environment}: #{name} runAsUser must be #{expected_uid}" unless container_security["runAsUser"] == expected_uid
+      missing << "#{environment}: #{name} runAsGroup must be 101" unless container_security["runAsGroup"] == 101
+
+      if name == "jjinbbang-admin-server"
+        dns_options = deployment&.dig("spec", "template", "spec", "dnsConfig", "options") || []
+        missing << "#{environment}: #{name} DNS ndots must be 1" unless dns_options.any? { |option| option["name"] == "ndots" && option["value"] == "1" }
       end
     end
  end

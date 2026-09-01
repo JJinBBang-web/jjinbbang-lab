@@ -80,8 +80,10 @@ GITOPS_APP_PRIVATE_KEY
 
 GitHub App은 repository dispatch 발신에 사용한다. source branch HEAD는 공개
 GitHub API로 확인하고 개인 PAT는 사용하지 않는다. 각 앱 이미지 게시에는 저장소
-기본 `GITHUB_TOKEN`의 Packages write 권한을 쓴다. lab workflow는 저장소의
-`GITHUB_TOKEN`으로 검증된 overlay 변경만 `main`에 반영한다.
+기본 `GITHUB_TOKEN`의 Packages write 권한을 쓴다. lab의 정기 dev 조정과 prod
+dispatch 수신 workflow는 `read:packages` 전용 `GHCR_PULL_USERNAME`과
+`GHCR_PULL_TOKEN`으로 private manifest를 읽는다. lab 저장소의 `GITHUB_TOKEN`은
+검증된 overlay 변경을 `main`에 반영하는 Contents 권한에만 사용한다.
 
 `jjinbbang-lab` Actions variable에는 repository dispatch를 보내는 GitHub App
 bot login을 정확히 설정한다.
@@ -94,9 +96,9 @@ GITOPS_DISPATCH_SENDER=jjinbbang-gitops[bot]
 `unexpected dispatch sender` 값으로 확인해 variable만 맞춘다. 수신 workflow는
 발신자, source repository, source branch HEAD, image digest가 모두 일치해야만
 desired state를 변경한다. GHCR package가 private이면 package 설정의 Actions
-access에 `JJinBBang-web/jjinbbang-lab`을 Read로 추가한다. 수신 workflow의
-`GITHUB_TOKEN`은 Packages read 외 권한을 사용하지 않고, `image:SHA`가 가리키는
-실제 manifest digest와 dispatch digest를 대조한다.
+access에 `JJinBBang-web/jjinbbang-lab`을 Read로 추가하고, 두 lab workflow에
+`GHCR_PULL_USERNAME`과 `GHCR_PULL_TOKEN`을 설정한다. 전용 reader로
+`image:SHA`가 가리키는 실제 manifest digest와 dispatch digest를 대조한다.
 
 `main` branch protection이 Actions의 직접 push를 막도록 변경되면 workflow를
 PR 생성 방식으로 전환해야 한다.
@@ -172,3 +174,23 @@ Provider, DNS, Secret 적용 후 브라우저에서 검증한다. 프론트팀�
 되돌린다. DB migration은 이미 적용된 파일을 수정하지 않고 새 Flyway migration
 으로만 보정한다. Argo CD는 `prune=false`이므로 리소스 삭제는 별도 승인 후
 수동으로 처리한다.
+
+CoreDNS split-horizon 변경을 되돌릴 때는 Git revert만으로는 충분하지 않다.
+플랫폼 Argo Application이 `prune=false`라서 Git에서 사라진 ConfigMap이
+클러스터에 남기 때문이다. 먼저 해당 GitOps 커밋을 revert하고 Argo가 새 revision을
+관찰한 것을 확인한 다음, 승인된 운영 창에서 아래 대상만 제거한다.
+
+```bash
+kubectl -n kube-system delete configmap coredns-custom --ignore-not-found
+kubectl -n kube-system rollout restart deployment/coredns
+kubectl -n kube-system rollout status deployment/coredns --timeout=120s
+if kubectl -n kube-system get configmap coredns-custom >/dev/null 2>&1; then
+  echo "coredns-custom still exists" >&2
+  exit 1
+fi
+```
+
+삭제 후 관리자 API Pod에서 Authentik과 MySQL 이름 해석을 다시 확인한다. 기존
+공용 resolver만으로 두 이름을 해석하지 못하면 관리자 rollout을 진행하지 않고
+revert 전 ConfigMap을 복구한다. 이 삭제 승인은 일반 Git revert나 Argo sync
+승인에 포함되지 않는다.

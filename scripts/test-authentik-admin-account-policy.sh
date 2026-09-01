@@ -15,17 +15,17 @@ ruby -ryaml -e '
   Psych.parse_stream(configmap.fetch("data").fetch("jjinbbang-admin-enrollment.yaml"))
 ' "$blueprint"
 
-rg -q 'slug: jjinbbang-admin-invitation-enrollment' "$blueprint"
-rg -q 'model: authentik_stages_invitation\.invitationstage' "$blueprint"
-rg -q 'continue_flow_without_invitation: false' "$blueprint"
-rg -q 'user_path_template: users/jjinbbang/pending' "$blueprint"
+grep -Eq 'slug: jjinbbang-admin-invitation-enrollment' "$blueprint"
+grep -Eq 'model: authentik_stages_invitation\.invitationstage' "$blueprint"
+grep -Eq 'continue_flow_without_invitation: false' "$blueprint"
+grep -Eq 'user_path_template: users/jjinbbang/pending' "$blueprint"
 
-if rg -q 'create_users_group|jjinbbang-backoffice-admins|authentik Admins' "$blueprint"; then
+if grep -Eq 'create_users_group|jjinbbang-backoffice-admins|authentik Admins' "$blueprint"; then
   echo "enrollment must not grant administrator groups" >&2
   exit 1
 fi
 
-rg -q 'group: !KeyOf jjinbbang-backoffice-admins$' "$sso_blueprint"
-rg -q 'group: !KeyOf jjinbbang-backoffice-admins-dev$' "$sso_blueprint"
+grep -Eq 'group: !KeyOf jjinbbang-backoffice-admins$' "$sso_blueprint"
+grep -Eq 'group: !KeyOf jjinbbang-backoffice-admins-dev$' "$sso_blueprint"
 
 echo "authentik administrator account policy ok"

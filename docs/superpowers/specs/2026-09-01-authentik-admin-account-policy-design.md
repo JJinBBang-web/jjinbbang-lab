@@ -30,4 +30,3 @@
 - enrollment flow는 어떤 관리자 그룹도 자동 부여하지 않는다.
 - dev/prod application은 각각의 관리자 그룹에만 연결된다.
 - blueprint 적용 후 flow와 stage가 live Authentik에 존재한다.
-

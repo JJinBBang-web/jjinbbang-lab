@@ -55,4 +55,3 @@
 - [ ] Merge only after CI passes and separate merge approval is present.
 - [ ] Apply/recreate the Authentik bootstrap Job after live-change approval.
 - [ ] Verify the flow exists, tokenless enrollment is denied, group bindings remain unchanged, and existing SSO health is unaffected.
-

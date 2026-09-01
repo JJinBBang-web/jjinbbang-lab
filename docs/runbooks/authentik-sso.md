@@ -54,6 +54,32 @@ Bootstrap Job을 사용하면 `ryuwon` admin 사용자는 이미 만들어져 �
 후 passkey와 TOTP를 모두 등록한다. 이 사용자는 `authentik Admins`,
 `jjinbbang-admins`, `jjinbbang-backoffice-admins` group에 속한다.
 
+## 2.1 관리자 개인 계정 발급
+
+관리자 페이지 계정은 공용 계정을 나눠 쓰지 않고 사람별로 발급한다. Bootstrap의
+`jjinbbang-admin-invitation-enrollment` flow는 유효한 초대 토큰이 없으면 등록을
+거부하며, 등록된 사용자를 어떤 관리자 group에도 자동으로 넣지 않는다.
+
+1. Authentik Admin interface의 `Directory > Invitations`에서 기존 enrollment
+   flow `찐빵 관리자 계정 초대 등록`을 선택한다.
+2. 초대는 대상자마다 하나씩 만들고 `Single use`를 켜며 만료는 최대 48시간으로
+   설정한다. 장기 또는 다중 사용 링크를 만들지 않는다.
+3. 사용자가 이름, 이메일, 개인 username/password를 등록하게 한다. 초대 링크와
+   비밀번호를 운영자가 대신 보관하지 않는다.
+4. 사용자가 passkey 또는 TOTP를 등록한 사실을 확인한다.
+5. dev 접근에는 `jjinbbang-backoffice-admins-dev`, prod 접근에는
+   `jjinbbang-backoffice-admins`만 수동 부여한다. `authentik Admins`는 Authentik
+   자체 운영 권한이 필요한 사람에게만 별도 부여한다.
+
+권한 회수는 대상 group에서 사용자를 제거한 뒤 기존 session을 종료한다. 계정을
+더 이상 사용하지 않으면 비활성화한다. 공용 bootstrap 계정은 1Password `찐빵`
+Vault에 보관하는 비상 복구 계정으로만 사용하고, 사용 후 session 종료와 비밀번호
+회전을 수행한다.
+
+관리자 로그인 화면의 `authentication_failed` 문구는 여러 OIDC 실패를 한 문구로
+표시할 수 있다. 이 문구만 보고 group 누락으로 단정하지 말고 Authentik application
+binding, OIDC claim, API callback 로그를 함께 확인한다.
+
 ## 3. Argo CD OIDC Provider
 
 Bootstrap Job을 사용하면 Authentik OAuth2/OpenID Provider가 이미 만들어져

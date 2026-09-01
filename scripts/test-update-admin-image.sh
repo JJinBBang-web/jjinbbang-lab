@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPDATE_SCRIPT="$ROOT_DIR/scripts/update-admin-image.sh"
 WORKFLOW="$ROOT_DIR/.github/workflows/update-admin-image.yml"
 SCHEDULE_WORKFLOW="$ROOT_DIR/.github/workflows/reconcile-admin-dev-images.yml"
+VALIDATE_WORKFLOW="$ROOT_DIR/.github/workflows/validate.yml"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/jjinbbang-admin-image-test.XXXXXX")"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -113,6 +114,70 @@ assert_only_target_changed() {
 
 [[ -f "$UPDATE_SCRIPT" ]] || fail "missing shared update script: $UPDATE_SCRIPT"
 [[ -x "$UPDATE_SCRIPT" ]] || fail "shared update script is not executable"
+
+ruby -ryaml -e '
+  violations = []
+  ARGV.each do |path|
+    workflow = YAML.load_file(path)
+    permissions = workflow["permissions"]
+    errors = []
+    errors << "top-level permissions must be a map" unless permissions.is_a?(Hash)
+    if permissions.is_a?(Hash)
+      errors << "permissions.contents must equal write" unless permissions["contents"] == "write"
+      errors << "permissions must not include packages" if permissions.key?("packages")
+    end
+    violations << "#{path}: #{errors.join("; ")}" unless errors.empty?
+  end
+
+  unless violations.empty?
+    warn violations.join("\n")
+    exit 1
+  end
+
+  puts "PASS: workflows grant contents write without packages permission"
+' "$WORKFLOW" "$SCHEDULE_WORKFLOW"
+
+ruby -ryaml -e '
+  expected_push_branches = %w[
+    main
+    develop
+    init/**
+    feat/**
+    fix/**
+    hotfix/**
+    release/**
+    docs/**
+    chore/**
+  ]
+
+  path = ARGV.fetch(0)
+  workflow = YAML.load_file(path)
+  errors = []
+  validation_job = workflow.fetch("jobs", {}).fetch("manifests", {})
+  steps = validation_job.fetch("steps", [])
+  invoked = steps.any? do |step|
+    step.is_a?(Hash) && step["run"] == "./scripts/test-update-admin-image.sh"
+  end
+  errors << "missing CI invocation ./scripts/test-update-admin-image.sh in manifests validation job" unless invoked
+
+  triggers = if workflow.key?("on")
+    workflow["on"]
+  elsif workflow.key?(true)
+    workflow[true]
+  end
+  errors << "top-level pull_request trigger is missing" unless triggers.is_a?(Hash) && triggers.key?("pull_request")
+
+  push = triggers["push"] if triggers.is_a?(Hash)
+  errors << "top-level push trigger must be a map" unless push.is_a?(Hash)
+  errors << "push.branches must equal the intended ordered branch list" unless push.is_a?(Hash) && push["branches"] == expected_push_branches
+
+  unless errors.empty?
+    warn "#{path}: #{errors.join("; ")}"
+    exit 1
+  end
+
+  puts "PASS: validate workflow invokes regression suite and preserves pull_request/push triggers"
+' "$VALIDATE_WORKFLOW"
 
 expect_rejected component 'unsupported component' \
   desktop dev "$WEB_SOURCE" develop "$WEB_SHA" "$WEB_IMAGE" "$WEB_SHA" "$WEB_DIGEST"

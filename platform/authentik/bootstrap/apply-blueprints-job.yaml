@@ -49,7 +49,10 @@ spec:
                           raise
                       time.sleep(5)
               PY
-              ak apply_blueprint /blueprints/system/bootstrap.yaml /blueprints/custom/jjinbbang-sso.yaml
+              ak apply_blueprint \
+                /blueprints/system/bootstrap.yaml \
+                /blueprints/custom/jjinbbang-sso.yaml \
+                /blueprints/admin-enrollment/jjinbbang-admin-enrollment.yaml
               ak shell -c '
               from authentik.outposts.models import Outpost
 
@@ -70,7 +73,13 @@ spec:
             - name: sso-blueprint
               mountPath: /blueprints/custom
               readOnly: true
+            - name: admin-enrollment-blueprint
+              mountPath: /blueprints/admin-enrollment
+              readOnly: true
       volumes:
         - name: sso-blueprint
           configMap:
             name: authentik-sso-blueprint
+        - name: admin-enrollment-blueprint
+          configMap:
+            name: authentik-admin-enrollment-blueprint

@@ -136,6 +136,8 @@ SSO 기준:
 - `jjinbbang-observers`: Argo CD readonly group.
 - `jjinbbang-backoffice-admins`: 찐빵 관리자 API 접근 group.
 - `jjinbbang-backoffice-admins-dev`: 관리자 API 개발 환경 접근 group.
+- 관리자 개인 계정은 Authentik의 만료되는 일회용 초대로 만들고, MFA 확인 후
+  환경별 group을 수동 부여한다. 공용 계정은 비상 복구용으로만 유지한다.
 
 ## 저장소 구조
 

@@ -47,6 +47,9 @@ kubectl kustomize platform/authentik >/tmp/jjinbbang-lab-authentik.yaml
 echo "== kubectl kustomize authentik bootstrap =="
 kubectl kustomize platform/authentik/bootstrap >/tmp/jjinbbang-lab-authentik-bootstrap.yaml
 
+echo "== authentik administrator account policy =="
+./scripts/test-authentik-admin-account-policy.sh
+
 echo "== kubectl kustomize argocd sso =="
 kubectl kustomize platform/argocd/sso >/tmp/jjinbbang-lab-argocd-sso.yaml
 

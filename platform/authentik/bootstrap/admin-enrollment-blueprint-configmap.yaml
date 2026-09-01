@@ -1,0 +1,162 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-admin-enrollment-blueprint
+  namespace: authentik
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+data:
+  jjinbbang-admin-enrollment.yaml: |
+    version: 1
+    metadata:
+      name: jjinbbang administrator invitation enrollment
+      labels:
+        blueprints.goauthentik.io/description: "Invitation-only personal accounts without administrator auto-grant"
+    entries:
+      - model: authentik_flows.flow
+        id: enrollment-flow
+        identifiers:
+          slug: jjinbbang-admin-invitation-enrollment
+        attrs:
+          name: 찐빵 관리자 계정 초대 등록
+          title: 찐빵 관리자 계정 등록
+          designation: enrollment
+          authentication: require_unauthenticated
+
+      - model: authentik_stages_invitation.invitationstage
+        id: invitation-stage
+        identifiers:
+          name: jjinbbang-admin-invitation-required
+        attrs:
+          continue_flow_without_invitation: false
+
+      - model: authentik_stages_prompt.prompt
+        id: username-field
+        identifiers:
+          name: jjinbbang-admin-enrollment-username
+        attrs:
+          field_key: username
+          label: Username
+          type: username
+          required: true
+          placeholder: Username
+          placeholder_expression: false
+          order: 0
+
+      - model: authentik_stages_prompt.prompt
+        id: password-field
+        identifiers:
+          name: jjinbbang-admin-enrollment-password
+        attrs:
+          field_key: password
+          label: Password
+          type: password
+          required: true
+          placeholder: Password
+          placeholder_expression: false
+          order: 1
+
+      - model: authentik_stages_prompt.prompt
+        id: password-repeat-field
+        identifiers:
+          name: jjinbbang-admin-enrollment-password-repeat
+        attrs:
+          field_key: password_repeat
+          label: Password (repeat)
+          type: password
+          required: true
+          placeholder: Password (repeat)
+          placeholder_expression: false
+          order: 2
+
+      - model: authentik_stages_prompt.prompt
+        id: name-field
+        identifiers:
+          name: jjinbbang-admin-enrollment-name
+        attrs:
+          field_key: name
+          label: Name
+          type: text
+          required: true
+          placeholder: Name
+          placeholder_expression: false
+          order: 0
+
+      - model: authentik_stages_prompt.prompt
+        id: email-field
+        identifiers:
+          name: jjinbbang-admin-enrollment-email
+        attrs:
+          field_key: email
+          label: Email
+          type: email
+          required: true
+          placeholder: Email
+          placeholder_expression: false
+          order: 1
+
+      - model: authentik_stages_prompt.promptstage
+        id: credentials-stage
+        identifiers:
+          name: jjinbbang-admin-enrollment-credentials
+        attrs:
+          fields:
+            - !KeyOf username-field
+            - !KeyOf password-field
+            - !KeyOf password-repeat-field
+
+      - model: authentik_stages_prompt.promptstage
+        id: profile-stage
+        identifiers:
+          name: jjinbbang-admin-enrollment-profile
+        attrs:
+          fields:
+            - !KeyOf name-field
+            - !KeyOf email-field
+
+      - model: authentik_stages_user_write.userwritestage
+        id: user-write-stage
+        identifiers:
+          name: jjinbbang-admin-enrollment-user-write
+        attrs:
+          user_creation_mode: always_create
+          user_type: internal
+          user_path_template: users/jjinbbang/pending
+
+      - model: authentik_stages_user_login.userloginstage
+        id: user-login-stage
+        identifiers:
+          name: jjinbbang-admin-enrollment-user-login
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf invitation-stage
+          order: 5
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: true
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf credentials-stage
+          order: 10
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf profile-stage
+          order: 15
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf user-write-stage
+          order: 20
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf enrollment-flow
+          stage: !KeyOf user-login-stage
+          order: 100

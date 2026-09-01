@@ -7,6 +7,8 @@ resources:
   - pdb.yaml
 images:
   - name: ghcr.io/jjinbbang-web/jjinbbang-server
-    newTag: bootstrap
+    newName: ghcr.io/jjinbbang-web/jjinbbang-server
+    digest: sha256:6b20455677e58b4de37f72e75da0da821035c2364ed5351c3887d29980bd39f1
   - name: ghcr.io/jjinbbang-web/jjinbbang-admin
-    newTag: bootstrap
+    newName: ghcr.io/jjinbbang-web/jjinbbang-admin
+    digest: sha256:850f2394af8c34077ff948672cae93579667ad680b70600b7c5ad9b12da29cf5

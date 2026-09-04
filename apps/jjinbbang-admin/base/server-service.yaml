@@ -2,6 +2,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: jjinbbang-admin-server
+  annotations:
+    traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.name: jjinbbang-admin-sticky
+    traefik.ingress.kubernetes.io/service.sticky.cookie.secure: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.httpOnly: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.sameSite: lax
   labels:
     app.kubernetes.io/name: jjinbbang-admin-server
     app.kubernetes.io/part-of: jjinbbang-admin

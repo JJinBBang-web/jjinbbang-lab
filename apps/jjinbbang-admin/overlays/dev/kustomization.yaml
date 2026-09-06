@@ -10,7 +10,7 @@ images:
     digest: sha256:0f83e2b42abf828ef499d1fed30d178747e1f8648ee5301ba57e3db172c44491
   - name: ghcr.io/jjinbbang-web/jjinbbang-admin
     newName: ghcr.io/jjinbbang-web/jjinbbang-admin
-    digest: sha256:185b8aef64dce66c19f23b9ec5cc1b7e5c66e906473baed1ed9cf92ca3212b45
+    digest: sha256:5a744deb4c7efd3a0cf2bec0f8ef95fbf40cb66b0a907cf43d59b7925bb919f0
 patches:
   - path: configmap-patch.yaml
   - path: deployment-patch.yaml

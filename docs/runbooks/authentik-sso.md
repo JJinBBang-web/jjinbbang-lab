@@ -228,7 +228,29 @@ n8n pod 로그에서 shim 로드도 확인한다.
 n8n forward-auth SSO shim enabled
 ```
 
-## 7. 복구
+## 7. 관리자 애플리케이션 로컬 개발
+
+관리자 Web의 dev 백엔드 연결은 Vite 프록시를 사용한다.
+
+```bash
+VITE_API_PROXY_TARGET=https://dev.admin.jjinbbang.kr npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+프록시는 `/api`, `/oauth2`, `/login/oauth2` 요청에
+`Forwarded: host=localhost:5173;proto=http`를 전달해야 Spring이 localhost
+콜백을 생성한다. dev Provider에는 아래 strict URI가 등록돼 있어야 한다.
+
+```text
+http://localhost:5173/login/oauth2/code/authentik
+http://localhost:5173/login?logout
+```
+
+운영 Provider에는 localhost URI를 등록하지 않는다. 로컬 QA는 Authentik 로그인
+후 localhost 콜백, `JJINBBANG_ADMIN_SESSION` 쿠키,
+`/api/admin/auth/me`, `/api/admin/auth/csrf`와 최소 하나의 보호 업무 API가
+200인지 확인한다.
+
+## 8. 복구
 
 SSO가 깨지면 다음 순서로 복구한다.
 

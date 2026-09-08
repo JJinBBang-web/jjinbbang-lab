@@ -11,4 +11,4 @@ images:
     digest: sha256:19ba18064fc48f3edf5020fbd3cc7b1ff7d80349e630f4a79977df2d8106d08d
   - name: ghcr.io/jjinbbang-web/jjinbbang-admin
     newName: ghcr.io/jjinbbang-web/jjinbbang-admin
-    digest: sha256:03d723c0cd3d4950801a5300e393b956a2bc3ae4538d2268da0b08194287e903
+    digest: sha256:bcded4e4d8c9bde80cf400062f2e0aa37364076cc15b893f1b4549bf052cd420

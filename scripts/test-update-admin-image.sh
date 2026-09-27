@@ -257,7 +257,7 @@ grep -Fq "cron: '17 * * * *'" "$SCHEDULE_WORKFLOW" || fail "dev reconciliation i
 grep -Fq 'workflow_dispatch:' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation cannot be run manually"
 grep -Fq 'group: update-admin-image' "$SCHEDULE_WORKFLOW" || fail "dev and prod updates do not share a concurrency boundary"
 grep -Fq 'for component in web server' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not update both components"
-grep -Fq 'commits/develop' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not resolve develop HEAD"
+grep -Fq 'bash ./scripts/resolve-admin-dev-source.sh "$source_repository"' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not select successful CI"
 grep -Fq 'platform.architecture == "arm64"' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not require ARM64"
 grep -Fq 'username: ${{ secrets.GHCR_PULL_USERNAME }}' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not use the dedicated GHCR reader username"
 grep -Fq 'password: ${{ secrets.GHCR_PULL_TOKEN }}' "$SCHEDULE_WORKFLOW" || fail "dev reconciliation does not use the dedicated GHCR reader token"
@@ -270,5 +270,31 @@ grep -Fq 'target="apps/jjinbbang-admin/overlays/dev/kustomization.yaml"' "$SCHED
 grep -Fq 'git add "$target"' "$SCHEDULE_WORKFLOW" || fail "scheduled reconciliation does not stage only dev"
 grep -Fq 'git push origin HEAD:main' "$SCHEDULE_WORKFLOW" || fail "scheduled reconciliation does not persist dev state"
 echo "PASS: hourly reconciliation validates ARM64 develop images and persists only dev"
+
+# Exercise selection without network: in-flight HEAD is not a deployable image.
+export RESOLVER_TEST_SHA="$SERVER_SHA" RESOLVER_TEST_STATUS=ahead RESOLVER_TEST_EMPTY=false
+bash -c '
+  curl() {
+    case "${*: -1}" in
+      *"branch=develop&event=push&status=success&per_page=1")
+        if [[ "$RESOLVER_TEST_EMPTY" == true ]]; then
+          echo "{\"workflow_runs\":[]}"
+        else
+          printf "{\"workflow_runs\":[{\"head_sha\":\"%s\",\"head_branch\":\"develop\",\"event\":\"push\",\"conclusion\":\"success\"}]}\n" "$RESOLVER_TEST_SHA"
+        fi ;;
+      *"compare/$RESOLVER_TEST_SHA...develop") printf "{\"status\":\"%s\"}\n" "$RESOLVER_TEST_STATUS" ;;
+      *) return 22 ;;
+    esac
+  }
+  export -f curl
+  resolver="$1/scripts/resolve-admin-dev-source.sh"
+  [[ "$(bash "$resolver" JJinBBang-web/jjinbbang-server)" == "$RESOLVER_TEST_SHA" ]] || exit 1
+  for state in diverged behind; do
+    if RESOLVER_TEST_STATUS="$state" bash "$resolver" JJinBBang-web/jjinbbang-server; then exit 1; fi
+  done
+  if RESOLVER_TEST_EMPTY=true bash "$resolver" JJinBBang-web/jjinbbang-server; then exit 1; fi
+  if bash "$resolver" another/repo; then exit 1; fi
+' _ "$ROOT_DIR" || fail "successful CI source selection regression"
+echo "PASS: successful CI selected; missing CI and removed commits rejected"
 
 echo "All update-admin-image tests passed"

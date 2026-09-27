@@ -46,7 +46,7 @@ component별 source repository develop/main
 -> main은 GitHub App으로 jjinbbang-lab repository_dispatch
 -> 발신 App, component별 source/image, source branch HEAD, 환경, ARM64 image digest 검증
 -> prod overlay의 선택한 component image digest 즉시 갱신
--> develop은 매시간 웹/API ARM64 image digest를 dev overlay에 조정
+-> develop은 매시간 최근 성공한 push CI의 웹/API ARM64 image digest를 dev overlay에 조정
 -> manifest 전체 검증
 -> 대상 overlay 파일만 jjinbbang-lab/main에 자동 반영
 ```
@@ -70,6 +70,46 @@ digest를 검증한다.
 사용한다. 원격 branch HEAD, ARM64 manifest, digest와 전체 manifest를 검증한 뒤
 선택한 overlay의 `kustomization.yaml`만 stage하여 `jjinbbang-lab/main`에 반영한다.
 변경할 digest가 없으면 commit 없이 성공 종료한다.
+
+dev 후보는 `scripts/resolve-admin-dev-source.sh`가 source의 `ci.yml`에서
+`branch=develop`, `event=push`, `status=success`인 가장 최근 run으로 선택한다.
+develop HEAD가 아직 빌드 중이거나 실패했다면 마지막 성공 이미지를 사용한다.
+선택된 SHA가 현재 develop의 조상이 아니면(force-push 등) 배포를 거부한다.
+성공 run이 없거나 API/registry 검증이 실패하면 현재 desired state를 유지하고
+workflow를 실패 처리한다. GitHub schedule은 지연될 수 있으므로 정확한 매시
+실행을 보장하지 않는다. 즉시 실행은 아래 수동 trigger를 쓴다.
+
+```bash
+gh workflow run reconcile-admin-dev-images.yml --repo JJinBBang-web/jjinbbang-lab --ref main
+```
+
+### GHCR 인증 실패 복구
+
+`denied`만으로 만료라고 단정하지 않는다. reader 계정, PAT 유효성,
+`read:packages` scope, 두 private 패키지에 대한 접근권한을 확인한다.
+1Password `찐빵 GHCR Package Reader`를 원본으로 다음 사본을 함께 갱신한다.
+
+- lab Actions: `GHCR_PULL_USERNAME`, `GHCR_PULL_TOKEN`
+- Kubernetes: `jjinbbang-admin-dev/ghcr-pull`, `jjinbbang-admin/ghcr-pull`
+- 같은 reader를 사용하는 `jjinbbang-legacy/ghcr-pull`도 이전 credential 일치를
+  확인하고 legacy manifest 접근 검증 후 함께 갱신한다.
+
+교체한 인증으로 **두 이미지의 정확한 SHA manifest**를 읽은 뒤 수동 dev 조정을
+실행한다. Secret 교체만으로 Pod를 강제 재시작하지 않는다. GitOps revision,
+Argo Synced/Healthy, 실제 Pod imageID, health, SSO/API를 확인해야 배포 완료다.
+토큰 만료일은 Vault에 기록하고 만료 전 교체한다. 워크플로 실패 요약은 Actions에
+남지만 별도 외부 알림/만료 감시가 자동 구성되는 것은 아니다.
+
+2026-09-27 장애 확인: source server CI `36314538960`은 성공했지만 dev reconciler
+`36305533817`은 GHCR 인증에서 실패했다. Vault reader와 dev/prod pull Secret 모두
+registry 인증이 거절됐다. GitHub 계정 화면에서 reader가 2026-09-23 만료된 것을
+확인했다. 2026-09-27 같은 `read:packages` 권한으로 재발급했고 새 만료일은
+2027-09-27 00:00 KST다. Vault의 token은 CONCEALED로 저장하고 `expires_on`,
+`management_url`을 기록했다. Actions와 세 namespace의 reader를 갱신한 뒤
+수동 dev run `36320057111`이 성공했고 GitOps `67ea8c010e96a95204281d5b89bf3b222187feff`가
+server digest를 `sha256:21a8b189ede3cdfa05c495b5e724a2b7dda9d8b0517dacb2e223ac9caaa73d0b`로
+갱신했다. 실행 중인 Pod의 정상 health는 신규 이미지 pull 가능성의 증거가
+아니므로 유효한 reader를 복구하기 전 rollout을 강제하지 않는다.
 
 source 저장소의 dispatch workflow에 다음 Actions Secret을 설정한다.
 

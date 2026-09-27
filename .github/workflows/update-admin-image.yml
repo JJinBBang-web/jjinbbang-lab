@@ -15,10 +15,21 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
+
+      - name: Check GHCR reader configuration
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        run: |
+          if [[ -z "$GHCR_USERNAME" || -z "$GHCR_TOKEN" ]]; then
+            echo "::error::Configure GHCR_PULL_USERNAME and GHCR_PULL_TOKEN from the approved package-reader vault item."
+            exit 1
+          fi
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -118,3 +129,9 @@ jobs:
           git add "$target"
           git commit -m "🔧 Chore: 관리자 ${COMPONENT} ${DEPLOY_ENVIRONMENT} 이미지 ${SOURCE_SHA} 반영"
           git push origin HEAD:main
+
+      - name: Report failed deployment
+        if: failure()
+        run: |
+          echo "::error::Prod GitOps update failed. Source image publication is not proof of production deployment. Inspect the failed step before retrying."
+          echo "Prod deployment failed: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"

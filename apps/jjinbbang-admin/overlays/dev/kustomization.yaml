@@ -7,7 +7,7 @@ resources:
 images:
   - name: ghcr.io/jjinbbang-web/jjinbbang-server
     newName: ghcr.io/jjinbbang-web/jjinbbang-server
-    digest: sha256:0f83e2b42abf828ef499d1fed30d178747e1f8648ee5301ba57e3db172c44491
+    digest: sha256:21a8b189ede3cdfa05c495b5e724a2b7dda9d8b0517dacb2e223ac9caaa73d0b
   - name: ghcr.io/jjinbbang-web/jjinbbang-admin
     newName: ghcr.io/jjinbbang-web/jjinbbang-admin
     digest: sha256:0a3d534c3c72f7208ac1373f04c4b7b37b5c46bcce986474a282ab8b41f0eaee

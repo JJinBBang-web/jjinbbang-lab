@@ -34,4 +34,6 @@ jobs:
 
       - run: ./scripts/validate-manifests.sh
 
+      - run: node --test scripts/test-n8n-forward-auth.cjs
+
       - run: ./scripts/test-update-admin-image.sh

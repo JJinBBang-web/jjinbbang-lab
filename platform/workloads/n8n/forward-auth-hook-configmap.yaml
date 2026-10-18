@@ -8,6 +8,7 @@ metadata:
 data:
   forward-auth-sso.js: |
     const DEFAULT_HEADER = 'X-authentik-email';
+    const {sendSsoPage, handleSsoLogout} = require('./sso-page');
 
     function log(logger, level, message, data) {
       const writer = logger?.[level] ?? console[level] ?? console.log;
@@ -100,8 +101,20 @@ data:
             }
 
             const middleware = async function n8nForwardAuthSso(req, res, next) {
+              if (handleSsoLogout(req, res)) return;
               const email = normalizeEmail(getHeader(req, headerName));
-              if (!email) return next();
+              const username = getHeader(req, 'X-authentik-username');
+              const browserPage = req.method === 'GET' &&
+                !req.path.startsWith('/rest/') && req.accepts('html') &&
+                (req.path === '/' || req.path === '/signin' || req.get('Sec-Fetch-Dest') === 'document');
+              if (!email) {
+                if (username || browserPage) {
+                  res.clearCookie('n8n-auth', {path: '/'});
+                  if (browserPage) return sendSsoPage(res, {username, reason: username ? 'missing-email' : 'missing-identity'});
+                  return unauthorized(req, res);
+                }
+                return next();
+              }
 
               try {
                 const user = await userRepository.findOne({
@@ -110,10 +123,15 @@ data:
                 });
 
                 if (!user || user.disabled || !user.role) {
-                  log(logger, 'warn', 'Rejected forward-auth login for unknown or disabled n8n user', { email });
+                  log(logger, 'warn', 'Rejected forward-auth login for unknown or disabled n8n user');
+                  res.clearCookie('n8n-auth', {path: '/'});
+                  if (browserPage) return sendSsoPage(res, {username, reason: 'unlinked-account'});
                   return unauthorized(req, res);
                 }
 
+                if (req.method === 'GET' && req.path === '/signin') {
+                  return sendSsoPage(res, {username, reason: 'ready'});
+                }
                 issueCookie(res, user);
                 req.user = user;
                 req.authInfo = { usedMfa: Boolean(user.mfaEnabled) };
@@ -133,3 +151,62 @@ data:
         ],
       },
     };
+  sso-page.js: |
+    const ORIGIN = 'https://n8n.jjinbbang.kr';
+    const LOGOUT_URL = 'https://auth.jjinbbang.kr/flows/-/default/invalidation/';
+
+    function escapeHtml(value = '') {
+      return String(value).replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[char]));
+    }
+
+    function handleSsoLogout(req, res) {
+      if (req.path !== '/sso/logout') return false;
+      res.set('Cache-Control', 'no-store');
+      if (req.method !== 'POST') {
+        res.set('Allow', 'POST').status(405).send('Method Not Allowed');
+      } else if (req.get('Origin') !== ORIGIN) {
+        res.status(403).send('Forbidden');
+      } else {
+        res.clearCookie('n8n-auth', {path: '/'});
+        res.redirect(303, LOGOUT_URL);
+      }
+      return true;
+    }
+
+    function sendSsoPage(res, {username, reason}) {
+      const ready = reason === 'ready';
+      const title = ready ? 'SSO로 n8n에 로그인' : 'n8n에 연결된 계정이 필요합니다';
+      const descriptions = {
+        'missing-email': '현재 SSO 계정에 이메일이 없어 n8n 계정을 확인할 수 없습니다. n8n에 등록된 개인 계정으로 다시 로그인해 주세요.',
+        'missing-identity': 'SSO 사용자 정보를 확인할 수 없습니다. SSO에서 다시 로그인해 주세요.',
+        'unlinked-account': '현재 SSO 계정에 연결된 사용 가능 n8n 계정이 없습니다. 관리자에게 계정 연결을 요청하거나 다른 계정으로 로그인해 주세요.',
+        ready: 'SSO 인증이 완료되어 있습니다. 비밀번호를 다시 입력하지 않고 n8n으로 이동할 수 있습니다.',
+      };
+      res.set({
+        'Cache-Control': 'no-store',
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://auth.jjinbbang.kr; base-uri 'none'; frame-ancestors 'none'",
+        'Referrer-Policy': 'no-referrer',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      return res.status(ready ? 200 : 403).type('html').send(`<!doctype html>
+    <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${title} · 찐빵</title><style>
+    *{box-sizing:border-box}body{margin:0;background:#f7f7f8;color:#252528;font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.65}
+    main{max-width:500px;margin:12vh auto;padding:36px;background:white;border:1px solid #e8e8eb;border-radius:20px}
+    .brand{margin:0 0 28px;color:#77777d;font-size:14px}h1{font-size:26px;line-height:1.4;letter-spacing:-.6px;margin:0 0 16px;font-weight:600}
+    p{color:#64646b;font-size:15px;margin:0 0 20px}.account{background:#f5f5f6;border-radius:8px;padding:12px 16px;overflow-wrap:anywhere;color:#414146}
+    a,button{display:block;width:100%;border-radius:9px;padding:12px 16px;text-align:center;font:inherit;font-weight:600;font-size:15px;text-decoration:none;cursor:pointer}
+    .primary{background:#ff6843;border:1px solid #ff6843;color:#fff}.secondary{margin-top:12px;color:#4d4d54;background:white;border:1px solid #dddde1}
+    a:focus-visible,button:focus-visible{outline:3px solid #252528;outline-offset:3px}.help{font-size:13px;margin:20px 0 0;color:#7b7b82}
+    @media(max-width:560px){main{margin:8vh 20px;padding:28px 24px}h1{font-size:24px}}
+    </style></head><body><main><p class="brand">찐빵 · n8n</p><h1>${title}</h1>
+    <p>${descriptions[reason]}</p>${username ? `<p class="account">현재 SSO 계정 · <strong>${escapeHtml(username)}</strong></p>` : ''}
+    ${ready ? '<a class="primary" href="/">SSO로 계속</a>' : ''}
+    <form method="post" action="/sso/logout"><button class="${ready ? 'secondary' : 'primary'}" type="submit">SSO 로그아웃 · 다른 계정으로 로그인</button></form>
+    <p class="help">SSO 로그아웃은 찐빵 통합 로그인 세션을 종료합니다. 연결된 다른 서비스에서도 다시 로그인이 필요할 수 있습니다.</p>
+    </main></body></html>`);
+    }
+
+    module.exports = {sendSsoPage, handleSsoLogout};

@@ -18,6 +18,8 @@ spec:
       app.kubernetes.io/instance: n8n
   template:
     metadata:
+      annotations:
+        jjinbbang.kr/forward-auth-revision: "20261018-sso-account-recovery"
       labels:
         app.kubernetes.io/name: n8n
         app.kubernetes.io/instance: n8n

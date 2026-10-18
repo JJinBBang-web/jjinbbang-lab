@@ -53,6 +53,8 @@ test('missing email shows account guidance and SSO logout, escapes identity', as
   assert.match(r.res.body, /&lt;script&gt;/);
   assert.doesNotMatch(r.res.body, /<script>/);
   assert.equal(r.res.headers['Cache-Control'], 'no-store');
+  // no-referrer turns a real browser form POST Origin into null.
+  assert.equal(r.res.headers['Referrer-Policy'], 'same-origin');
   assert.equal(r.issued, 0);
   assert.equal(r.next, false);
 });
@@ -84,7 +86,7 @@ test('signin offers continue and global logout without silently logging back in'
   assert.equal(r.issued, 0);
 });
 test('logout requires same-origin POST and redirects only to fixed Authentik flow', async () => {
-  for (const origin of [undefined, 'https://attacker.example']) {
+  for (const origin of [undefined, 'null', 'https://attacker.example']) {
     const r = await request({url: '/sso/logout', method: 'POST', headers: {origin}});
     assert.equal(r.res.statusCode, 403);
     assert.equal(r.res.cleared.length, 0);

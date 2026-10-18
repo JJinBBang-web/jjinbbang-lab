@@ -12,6 +12,8 @@
   Authentik `/flows/-/default/invalidation/`으로 이동한다. 임의 redirect 입력을 받지 않는다.
 - Authentik 전역 로그아웃은 다른 연결 서비스의 세션도 종료할 수 있으므로 버튼 아래에 안내한다.
 - 화면과 로그아웃 응답은 no-store이며 사용자 이름은 HTML escape한다.
+- 화면 Referrer-Policy는 same-origin이다. no-referrer는 실제 브라우저 폼 POST의
+  Origin을 null로 만들어 출처 검사가 실패하므로 사용하지 않는다. Origin null은 허용하지 않는다.
 
 ## 검증
 

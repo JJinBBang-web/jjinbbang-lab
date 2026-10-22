@@ -209,6 +209,9 @@ prerequisites are ready, then let the platform root Application sync it.
 
 ## 8. 배포 검증
 
+Java 인증서 차단 정책 갱신은 [전용 runbook](java-certificate-blocklist.md)을 따른다.
+실행 중 JRE의 차단 목록과 실제 이미지 digest를 함께 검증한다.
+
 Argo CD:
 
 ```bash

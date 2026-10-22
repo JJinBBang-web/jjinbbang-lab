@@ -6,7 +6,7 @@ resources:
   - namespace.yaml
 images:
   - name: ghcr.io/jjinbbang-web/jjinbbang-api
-    digest: sha256:202bb1fe97674e826d7f5837bf5a78dfb74423376481287fba7da23721d8c0b4
+    digest: sha256:999640bb5613e9506f0c9adc7ae6303ea92871acb365c88dbd3ac8de1975b49b
 patches:
   - path: configmap-patch.yaml
   - path: deployment-patch.yaml
